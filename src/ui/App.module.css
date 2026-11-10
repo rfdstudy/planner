@@ -1,0 +1,19 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.topBar {
+  flex: 0 0 48px;
+  height: 48px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+}

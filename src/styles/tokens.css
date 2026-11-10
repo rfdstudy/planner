@@ -1,0 +1,51 @@
+:root {
+  /* Surfaces */
+  --bg: #ffffff; /* grille, fenêtres */
+  --bg-subtle: #f7f7f5; /* panneaux, fond de l'app */
+  --bg-hover: #f1f1ee;
+
+  /* Lignes */
+  --line: #ecece8; /* lignes d'heures, séparateurs */
+  --line-strong: #ddddd7;
+
+  /* Texte */
+  --text: #1f2328; /* principal */
+  --text-2: #4b525b; /* secondaire */
+  --text-3: #70757e; /* discret : heures, métadonnées */
+
+  /* Accent unique (graphite) */
+  --accent: #1f2328;
+  --accent-soft: rgba(31, 35, 40, 0.06);
+
+  /* Alerte : réservée aux épreuves */
+  --alert: #d6455d;
+  --alert-soft: #fdecef;
+
+  /* Typographie */
+  --font: 'Inter', system-ui, sans-serif;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+
+  /* Espacement (base 4 px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Formes */
+  --radius-block: 6px;
+  --radius-panel: 10px;
+  --radius-ctl: 8px;
+
+  /* Ombre : menus et bloc déplacé uniquement */
+  --shadow-float: 0 6px 20px rgba(31, 35, 40, 0.12);
+
+  /* Mouvement */
+  --t-fast: 120ms ease-out;
+  --t-panel: 180ms ease-out;
+}
