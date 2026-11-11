@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { listInboxTasks } from '../src/core/inbox'
 import { PlannerDatabase } from '../src/db/database'
 import { DEMO_WEEK_START, DEMO_WEEK_LOADED_SETTING_KEY, loadDemoWeek } from '../src/db/demoWeek'
 import { createRepositories, type Repositories } from '../src/db/repositories'
@@ -39,6 +40,19 @@ describe('données de démonstration', () => {
     const items = await repositories.items.list()
     const itemIds = new Set(items.map((item) => item.id))
     expect(blocks.every((block) => itemIds.has(block.itemId))).toBe(true)
+
+    const inbox = listInboxTasks(items, blocks, categories)
+
+    expect(inbox.map((task) => task.item.title).sort((a, b) => a.localeCompare(b, 'fr'))).toEqual(
+      [
+        'DM Maths n°4',
+        'Feuille d’exercices n°7',
+        'Fiche chapitre 5',
+        'Synthèse d’anglais',
+        'TP OCaml'
+      ].sort((a, b) => a.localeCompare(b, 'fr'))
+    )
+    expect(inbox.find((task) => task.item.title === 'DM Maths n°4')?.remainingMin).toBe(60)
 
     const second = await loadDemoWeek(repositories)
 

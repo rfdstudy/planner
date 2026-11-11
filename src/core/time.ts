@@ -215,3 +215,34 @@ export function clampMinutes(
 
   return Math.min(max, Math.max(min, minutes))
 }
+
+/**
+ * Formate une durée en minutes pour l'affichage : « 45 min », « 1 h »,
+ * « 1 h 30 ».
+ */
+export function formatDurationMinutes(minutes: number): string {
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    throw new RangeError(`Durée invalide : ${minutes}`)
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+
+  if (hours === 0) return `${remainingMinutes} min`
+  if (remainingMinutes === 0) return `${hours} h`
+
+  return `${hours} h ${remainingMinutes}`
+}
+
+/**
+ * Lit une durée entière positive saisie en minutes. Renvoie `null` si la
+ * saisie est vide, négative ou non entière.
+ */
+export function parsePositiveMinutes(value: string): number | null {
+  const trimmed = value.trim()
+
+  if (!/^\d+$/.test(trimmed)) return null
+
+  const parsed = Number(trimmed)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}

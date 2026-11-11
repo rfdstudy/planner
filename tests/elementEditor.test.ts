@@ -4,7 +4,9 @@ import {
   createNewElementDraft,
   elementDraftFrom,
   snapNewBlockStart,
+  taskDraftFrom,
   validateElementDraft,
+  validateTaskDraft,
   type ElementDraft
 } from '../src/core/elementEditor'
 import type { Block, Item } from '../src/core/types'
@@ -64,6 +66,7 @@ describe('nouveau bloc sur la grille', () => {
 
   it('prépare un brouillon de tâche à l’heure accrochée', () => {
     expect(createNewElementDraft({ date: '2026-11-12', startMin: 840 })).toEqual({
+      variant: 'element',
       kind: 'task',
       title: '',
       notes: '',
@@ -81,6 +84,7 @@ describe('nouveau bloc sur la grille', () => {
     const draft = elementDraftFrom(makeItem(), makeBlock())
 
     expect(draft).toEqual({
+      variant: 'element',
       kind: 'task',
       title: 'DM Maths',
       notes: 'Chapitre 3',
@@ -199,6 +203,79 @@ describe('validation du brouillon', () => {
     expect(validateElementDraft(validDraft({ time: '23:30', durationMin: '60' }))).toEqual({
       ok: false,
       message: 'Le bloc dépasserait minuit.'
+    })
+  })
+})
+
+describe('édition d’une tâche sans bloc', () => {
+  it('relit une tâche à planifier sans champ de placement', () => {
+    expect(taskDraftFrom(makeItem())).toEqual({
+      variant: 'task',
+      title: 'DM Maths',
+      notes: 'Chapitre 3',
+      categoryId: 'category-1',
+      estimateMin: '120'
+    })
+  })
+
+  it('refuse un élément qui n’est pas une tâche', () => {
+    expect(() => taskDraftFrom(makeItem({ kind: 'fixed' }))).toThrow(RangeError)
+  })
+
+  it('renvoie des valeurs normalisées sans exiger de date ni d’heure', () => {
+    expect(
+      validateTaskDraft({
+        variant: 'task',
+        title: '  Révisions  ',
+        notes: '  Fiche 5  ',
+        categoryId: 'category-1',
+        estimateMin: '90'
+      })
+    ).toEqual({
+      ok: true,
+      values: {
+        title: 'Révisions',
+        notes: 'Fiche 5',
+        categoryId: 'category-1',
+        estimateMin: 90
+      }
+    })
+  })
+
+  it('accepte une durée estimée vide', () => {
+    const validation = validateTaskDraft({
+      variant: 'task',
+      title: 'Révisions',
+      notes: '',
+      categoryId: null,
+      estimateMin: '   '
+    })
+
+    expect(validation.ok && validation.values.estimateMin).toBeNull()
+  })
+
+  it('exige un titre et une durée estimée entière', () => {
+    expect(
+      validateTaskDraft({
+        variant: 'task',
+        title: '   ',
+        notes: '',
+        categoryId: null,
+        estimateMin: ''
+      })
+    ).toEqual({ ok: false, message: 'Donnez un titre à la tâche.' })
+
+    expect(
+      validateTaskDraft({
+        variant: 'task',
+        title: 'Révisions',
+        notes: '',
+        categoryId: null,
+        estimateMin: '45,5'
+      })
+    ).toEqual({
+      ok: false,
+      message: 'La durée estimée doit être un nombre entier de minutes.'
     })
   })
 })

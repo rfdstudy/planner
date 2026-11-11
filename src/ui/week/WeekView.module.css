@@ -15,8 +15,16 @@
   font-size: var(--fs-sm);
 }
 
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+}
+
 .scrollArea {
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;

@@ -1,0 +1,339 @@
+.panel {
+  display: flex;
+  flex: 0 0 var(--inbox-width);
+  flex-direction: column;
+  width: var(--inbox-width);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-subtle);
+  transition:
+    flex-basis var(--t-panel),
+    width var(--t-panel);
+}
+
+.collapsed {
+  flex-basis: var(--inbox-collapsed-width);
+  width: var(--inbox-collapsed-width);
+}
+
+.collapsedHeader {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--sp-3);
+}
+
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+}
+
+.heading {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.collapseButton {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-block);
+  color: var(--text-3);
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.collapseButton:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.quickAdd {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-3);
+}
+
+.titleInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.titleInput::placeholder {
+  color: var(--text-3);
+}
+
+.titleInput:focus {
+  border-color: var(--line-strong);
+}
+
+.titleInput:disabled {
+  opacity: 0.55;
+}
+
+.quickRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.categoryField {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.categoryDot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--category-color, var(--line-strong));
+}
+
+.categorySelect {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--sp-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.categorySelect:hover {
+  background: var(--bg-hover);
+}
+
+.categorySelect:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.categorySelect:disabled,
+.estimateInput:disabled {
+  opacity: 0.55;
+}
+
+.estimateField {
+  position: relative;
+  flex: 0 0 74px;
+}
+
+.estimateInput {
+  width: 100%;
+  height: 28px;
+  padding: 0 24px 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.estimateInput::placeholder {
+  color: var(--text-3);
+}
+
+.estimateInput:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.estimateInput:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.estimateInput[type='number'] {
+  appearance: textfield;
+}
+
+.estimateInput[type='number']::-webkit-inner-spin-button,
+.estimateInput[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.estimateSuffix {
+  position: absolute;
+  top: 50%;
+  right: var(--sp-2);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.submitButton {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-ctl);
+  background: var(--accent);
+  color: var(--bg);
+  transition: opacity var(--t-fast);
+}
+
+.submitButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.submitButton:disabled {
+  opacity: 0.3;
+}
+
+.filters {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 0 var(--sp-4) var(--sp-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filterButton {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 var(--sp-2);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.filterButton:hover {
+  background: var(--bg-hover);
+}
+
+.filterActive {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.filterActive:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 var(--sp-2) var(--sp-4);
+  overflow-y: auto;
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.row {
+  display: flex;
+  flex: 0 0 var(--inbox-row-height);
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: var(--inbox-row-height);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-block);
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--t-fast);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+/* Une tâche terminée reste visible, grisée (document 3). */
+.rowDone {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--category-color, var(--line-strong));
+}
+
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.remaining {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: var(--sp-4) var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
+.error {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    transition: none;
+  }
+}

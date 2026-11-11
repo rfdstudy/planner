@@ -1,8 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   validateElementDraft,
+  validateTaskDraft,
   type ElementDraft,
-  type ElementDraftValues
+  type ElementDraftValues,
+  type TaskDraft,
+  type TaskDraftValues
 } from '../../core/elementEditor'
 import type { Category, CategoryGroup, ItemKind } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
@@ -20,13 +23,16 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ItemKind; label: string }> = [
 ]
 
 interface ElementEditorProps {
-  mode: 'create' | 'edit'
-  initialDraft: ElementDraft
+  mode: 'create' | 'edit' | 'task'
+  initialDraft: ElementDraft | TaskDraft
   anchor: FloatingAnchor
   categories: readonly Category[]
   categoryGroups: readonly CategoryGroup[]
   onClose: () => void
-  onSubmit: (values: ElementDraftValues) => Promise<void>
+  /** Appelé pour un élément de la grille. */
+  onSubmit?: (values: ElementDraftValues) => Promise<void>
+  /** Appelé pour une tâche encore sans bloc, depuis « À planifier ». */
+  onSubmitTask?: (values: TaskDraftValues) => Promise<void>
   /** Absent en création : rien n'existe encore à supprimer. */
   onDelete?: () => Promise<void>
 }
@@ -49,9 +55,10 @@ export function ElementEditor({
   categoryGroups,
   onClose,
   onSubmit,
+  onSubmitTask,
   onDelete
 }: ElementEditorProps): React.JSX.Element {
-  const [draft, setDraft] = useState<ElementDraft>(initialDraft)
+  const [draft, setDraft] = useState<ElementDraft | TaskDraft>(initialDraft)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<'save' | 'delete' | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -92,6 +99,7 @@ export function ElementEditor({
 
   const archivedCurrent =
     selectedCategory !== null && selectedCategory.archivedAt !== null ? selectedCategory : null
+  const draftShape = draft.variant === 'element' ? draft.kind : 'task'
 
   useLayoutEffect(() => {
     const panel = panelRef.current
@@ -121,7 +129,7 @@ export function ElementEditor({
     window.addEventListener('resize', place)
 
     return () => window.removeEventListener('resize', place)
-  }, [anchor, error, confirmingDelete, draft.kind])
+  }, [anchor, error, confirmingDelete, draftShape])
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent): void => {
@@ -154,12 +162,34 @@ export function ElementEditor({
   }, [busy, onClose])
 
   function updateDraft(patch: Partial<ElementDraft>): void {
-    setDraft((current) => ({ ...current, ...patch }))
+    setDraft((current) => (current.variant === 'element' ? { ...current, ...patch } : current))
+    setError(null)
+    setConfirmingDelete(false)
+  }
+
+  function updateCommon(patch: {
+    title?: string
+    notes?: string
+    categoryId?: string | null
+  }): void {
+    setDraft((current) =>
+      current.variant === 'task' ? { ...current, ...patch } : { ...current, ...patch }
+    )
+    setError(null)
+    setConfirmingDelete(false)
+  }
+
+  function updateEstimate(estimateMin: string): void {
+    setDraft((current) =>
+      current.variant === 'task' ? { ...current, estimateMin } : { ...current, estimateMin }
+    )
     setError(null)
     setConfirmingDelete(false)
   }
 
   function handleKindChange(kind: ItemKind): void {
+    if (draft.variant !== 'element') return
+
     updateDraft({
       kind,
       noTime: kind === 'exam' ? draft.noTime : false,
@@ -168,6 +198,8 @@ export function ElementEditor({
   }
 
   function handleNoTimeChange(noTime: boolean): void {
+    if (draft.variant !== 'element') return
+
     updateDraft({
       noTime,
       time: noTime || draft.time !== '' ? draft.time : '08:00'
@@ -178,6 +210,36 @@ export function ElementEditor({
     event.preventDefault()
 
     if (busy) return
+
+    if (draft.variant === 'task') {
+      const validation = validateTaskDraft(draft)
+
+      if (!validation.ok) {
+        setError(validation.message)
+
+        if (draft.title.trim().length === 0) {
+          titleRef.current?.focus()
+        }
+
+        return
+      }
+
+      if (onSubmitTask === undefined) return
+
+      setError(null)
+      setPending('save')
+
+      try {
+        await onSubmitTask(validation.values)
+      } catch {
+        setError('L’enregistrement a échoué. Réessayez.')
+        setPending(null)
+      }
+
+      return
+    }
+
+    if (onSubmit === undefined) return
 
     const validation = validateElementDraft(draft)
 
@@ -233,10 +295,22 @@ export function ElementEditor({
         visibility: position === null ? 'hidden' : 'visible'
       }}
       role="dialog"
-      aria-label={mode === 'create' ? 'Nouvel élément' : 'Modifier l’élément'}
+      aria-label={
+        mode === 'create'
+          ? 'Nouvel élément'
+          : mode === 'task'
+            ? 'Modifier la tâche'
+            : 'Modifier l’élément'
+      }
     >
       <div className={styles.header}>
-        <h2 className={styles.title}>{mode === 'create' ? 'Nouvel élément' : 'Modifier'}</h2>
+        <h2 className={styles.title}>
+          {mode === 'create'
+            ? 'Nouvel élément'
+            : mode === 'task'
+              ? 'Modifier la tâche'
+              : 'Modifier'}
+        </h2>
         <button
           type="button"
           className={styles.closeButton}
@@ -258,32 +332,34 @@ export function ElementEditor({
               className={styles.control}
               type="text"
               value={draft.title}
-              placeholder="Titre de l’élément"
+              placeholder={mode === 'task' ? 'Titre de la tâche' : 'Titre de l’élément'}
               aria-label="Titre"
               maxLength={200}
               autoFocus
               disabled={busy}
-              onChange={(event) => updateDraft({ title: event.target.value })}
+              onChange={(event) => updateCommon({ title: event.target.value })}
             />
           </label>
 
           <div className={styles.row}>
-            <label className={`${styles.field} ${styles.typeField}`}>
-              <span className={styles.label}>Type</span>
-              <select
-                className={styles.control}
-                value={draft.kind}
-                aria-label="Type"
-                disabled={busy}
-                onChange={(event) => handleKindChange(event.target.value as ItemKind)}
-              >
-                {KIND_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {draft.variant === 'element' && (
+              <label className={`${styles.field} ${styles.typeField}`}>
+                <span className={styles.label}>Type</span>
+                <select
+                  className={styles.control}
+                  value={draft.kind}
+                  aria-label="Type"
+                  disabled={busy}
+                  onChange={(event) => handleKindChange(event.target.value as ItemKind)}
+                >
+                  {KIND_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <label className={`${styles.field} ${styles.grow}`}>
               <span className={styles.label}>Catégorie</span>
@@ -307,7 +383,7 @@ export function ElementEditor({
                   aria-label="Catégorie"
                   disabled={busy}
                   onChange={(event) =>
-                    updateDraft({
+                    updateCommon({
                       categoryId: event.target.value === '' ? null : event.target.value
                     })
                   }
@@ -332,65 +408,69 @@ export function ElementEditor({
             </label>
           </div>
 
-          <div className={styles.row}>
-            <label className={`${styles.field} ${styles.dateField}`}>
-              <span className={styles.label}>Date</span>
-              <input
-                className={styles.control}
-                type="date"
-                value={draft.date}
-                aria-label="Date"
-                disabled={busy}
-                onChange={(event) => updateDraft({ date: event.target.value })}
-              />
-            </label>
+          {draft.variant === 'element' && (
+            <>
+              <div className={styles.row}>
+                <label className={`${styles.field} ${styles.dateField}`}>
+                  <span className={styles.label}>Date</span>
+                  <input
+                    className={styles.control}
+                    type="date"
+                    value={draft.date}
+                    aria-label="Date"
+                    disabled={busy}
+                    onChange={(event) => updateDraft({ date: event.target.value })}
+                  />
+                </label>
 
-            <label className={`${styles.field} ${styles.timeField}`}>
-              <span className={styles.label}>Heure</span>
-              <input
-                className={styles.control}
-                type="time"
-                step={900}
-                value={draft.noTime ? '' : draft.time}
-                aria-label="Heure"
-                disabled={busy || draft.noTime}
-                onChange={(event) => updateDraft({ time: event.target.value })}
-              />
-            </label>
+                <label className={`${styles.field} ${styles.timeField}`}>
+                  <span className={styles.label}>Heure</span>
+                  <input
+                    className={styles.control}
+                    type="time"
+                    step={900}
+                    value={draft.noTime ? '' : draft.time}
+                    aria-label="Heure"
+                    disabled={busy || draft.noTime}
+                    onChange={(event) => updateDraft({ time: event.target.value })}
+                  />
+                </label>
 
-            <label className={`${styles.field} ${styles.durationField}`}>
-              <span className={styles.label}>Durée</span>
-              <span className={styles.suffixField}>
-                <input
-                  className={styles.control}
-                  type="number"
-                  min={1}
-                  max={1440}
-                  step={15}
-                  inputMode="numeric"
-                  value={draft.durationMin}
-                  aria-label="Durée en minutes"
-                  disabled={busy}
-                  onChange={(event) => updateDraft({ durationMin: event.target.value })}
-                />
-                <span className={styles.suffix}>min</span>
-              </span>
-            </label>
-          </div>
+                <label className={`${styles.field} ${styles.durationField}`}>
+                  <span className={styles.label}>Durée</span>
+                  <span className={styles.suffixField}>
+                    <input
+                      className={styles.control}
+                      type="number"
+                      min={1}
+                      max={1440}
+                      step={15}
+                      inputMode="numeric"
+                      value={draft.durationMin}
+                      aria-label="Durée en minutes"
+                      disabled={busy}
+                      onChange={(event) => updateDraft({ durationMin: event.target.value })}
+                    />
+                    <span className={styles.suffix}>min</span>
+                  </span>
+                </label>
+              </div>
 
-          {draft.kind === 'exam' && (
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={draft.noTime}
-                disabled={busy}
-                onChange={(event) => handleNoTimeChange(event.target.checked)}
-              />
-              Sans heure (ligne du haut)
-            </label>
+              {draft.kind === 'exam' && (
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={draft.noTime}
+                    disabled={busy}
+                    onChange={(event) => handleNoTimeChange(event.target.checked)}
+                  />
+                  Sans heure (ligne du haut)
+                </label>
+              )}
+            </>
           )}
 
-          {draft.kind === 'task' && (
+          {(draft.variant === 'task' || draft.kind === 'task') && (
             <label className={`${styles.field} ${styles.estimateField}`}>
               <span className={styles.label}>Durée estimée</span>
               <span className={styles.suffixField}>
@@ -404,7 +484,7 @@ export function ElementEditor({
                   placeholder="Facultative"
                   aria-label="Durée estimée en minutes"
                   disabled={busy}
-                  onChange={(event) => updateDraft({ estimateMin: event.target.value })}
+                  onChange={(event) => updateEstimate(event.target.value)}
                 />
                 <span className={styles.suffix}>min</span>
               </span>
@@ -421,7 +501,7 @@ export function ElementEditor({
               aria-label="Notes"
               maxLength={4000}
               disabled={busy}
-              onChange={(event) => updateDraft({ notes: event.target.value })}
+              onChange={(event) => updateCommon({ notes: event.target.value })}
             />
           </label>
 

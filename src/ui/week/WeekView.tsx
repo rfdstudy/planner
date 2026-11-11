@@ -24,6 +24,7 @@ import { loadDemoWeek } from '../../db/demoWeek'
 import { repositories } from '../../db/repositories'
 import { useUiStore } from '../../state/ui'
 import { ElementEditor } from './ElementEditor'
+import { InboxPanel } from './InboxPanel'
 import { TimeBlock } from './TimeBlock'
 import { WeekTopBar } from './WeekTopBar'
 import type { FloatingAnchor, PlacedEntry, WeekData, WeekDayData, WeekEntry } from './weekTypes'
@@ -279,94 +280,99 @@ export function WeekView(): React.JSX.Element {
         </p>
       )}
 
-      <div className={styles.scrollArea} ref={scrollRef}>
-        <div className={styles.stickyHeader}>
-          <div className={styles.headerRow}>
-            <div className={styles.hourSpacer} />
-            {weekDays.map((date) => {
-              const isToday = date === today
-              const dayNumber = parseLocalDate(date).getDate()
+      <div className={styles.body}>
+        <div className={styles.scrollArea} ref={scrollRef}>
+          <div className={styles.stickyHeader}>
+            <div className={styles.headerRow}>
+              <div className={styles.hourSpacer} />
+              {weekDays.map((date) => {
+                const isToday = date === today
+                const dayNumber = parseLocalDate(date).getDate()
 
-              return (
-                <div
-                  className={styles.dayHeader}
-                  key={date}
-                  aria-current={isToday ? 'date' : undefined}
-                >
-                  <span className={styles.weekday}>{formatWeekdayShort(date)}</span>
-                  <span className={isToday ? styles.todayNumber : styles.dayNumber}>
-                    {dayNumber}
-                  </span>
-                </div>
-              )
-            })}
+                return (
+                  <div
+                    className={styles.dayHeader}
+                    key={date}
+                    aria-current={isToday ? 'date' : undefined}
+                  >
+                    <span className={styles.weekday}>{formatWeekdayShort(date)}</span>
+                    <span className={isToday ? styles.todayNumber : styles.dayNumber}>
+                      {dayNumber}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {hasExamLine && (
+              <div className={styles.examRow}>
+                <div className={styles.hourSpacer} />
+                {weekDays.map((date) => (
+                  <div className={styles.examCell} key={date}>
+                    {(daysData.get(date)?.exams ?? []).map((entry) => (
+                      <button
+                        type="button"
+                        className={styles.examPill}
+                        key={entry.block.id}
+                        title={entry.item.title}
+                        onClick={(event) =>
+                          openEntry(entry, { x: event.clientX, y: event.clientY })
+                        }
+                      >
+                        <span className={styles.examPillDot} aria-hidden="true" />
+                        <span className={styles.examPillTitle}>
+                          {entry.item.title} · {formatDaysUntil(entry.block.date, today)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {hasExamLine && (
-            <div className={styles.examRow}>
-              <div className={styles.hourSpacer} />
+          <div className={styles.grid}>
+            <div className={styles.hourColumn}>
+              {Array.from({ length: MINUTES_PER_DAY / 60 }, (_, hour) => (
+                <span className={styles.hourLabel} style={{ top: `${hour * 60}px` }} key={hour}>
+                  {minutesToTime(hour * 60)}
+                </span>
+              ))}
+            </div>
+
+            <div className={styles.days}>
               {weekDays.map((date) => (
-                <div className={styles.examCell} key={date}>
-                  {(daysData.get(date)?.exams ?? []).map((entry) => (
-                    <button
-                      type="button"
-                      className={styles.examPill}
+                <div
+                  className={styles.dayColumn}
+                  key={date}
+                  title="Cliquer pour ajouter un bloc"
+                  onClick={(event) => handleSlotClick(date, event)}
+                >
+                  {(daysData.get(date)?.timed ?? []).map((entry) => (
+                    <TimeBlock
                       key={entry.block.id}
-                      title={entry.item.title}
-                      onClick={(event) => openEntry(entry, { x: event.clientX, y: event.clientY })}
-                    >
-                      <span className={styles.examPillDot} aria-hidden="true" />
-                      <span className={styles.examPillTitle}>
-                        {entry.item.title} · {formatDaysUntil(entry.block.date, today)}
-                      </span>
-                    </button>
+                      entry={entry}
+                      today={today}
+                      onOpen={openEntry}
+                      onToggleDone={(placedEntry, done) => void handleToggleDone(placedEntry, done)}
+                    />
                   ))}
+
+                  {date === today && (
+                    <div
+                      className={styles.nowLine}
+                      style={{ top: `${nowMinutes}px` }}
+                      aria-hidden="true"
+                    >
+                      <span className={styles.nowDot} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className={styles.grid}>
-          <div className={styles.hourColumn}>
-            {Array.from({ length: MINUTES_PER_DAY / 60 }, (_, hour) => (
-              <span className={styles.hourLabel} style={{ top: `${hour * 60}px` }} key={hour}>
-                {minutesToTime(hour * 60)}
-              </span>
-            ))}
-          </div>
-
-          <div className={styles.days}>
-            {weekDays.map((date) => (
-              <div
-                className={styles.dayColumn}
-                key={date}
-                title="Cliquer pour ajouter un bloc"
-                onClick={(event) => handleSlotClick(date, event)}
-              >
-                {(daysData.get(date)?.timed ?? []).map((entry) => (
-                  <TimeBlock
-                    key={entry.block.id}
-                    entry={entry}
-                    today={today}
-                    onOpen={openEntry}
-                    onToggleDone={(placedEntry, done) => void handleToggleDone(placedEntry, done)}
-                  />
-                ))}
-
-                {date === today && (
-                  <div
-                    className={styles.nowLine}
-                    style={{ top: `${nowMinutes}px` }}
-                    aria-hidden="true"
-                  >
-                    <span className={styles.nowDot} />
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         </div>
+        <InboxPanel />
       </div>
 
       {editor !== null && data !== null && (

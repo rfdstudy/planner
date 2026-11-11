@@ -3,6 +3,7 @@ import {
   clampMinutes,
   isLocalDate,
   minutesToTime,
+  parsePositiveMinutes,
   snapMinutes,
   timeToMinutes
 } from './time'
@@ -16,6 +17,7 @@ export const DEFAULT_ELEMENT_DURATION_MIN = 60
  * date restent des chaînes : l'utilisateur peut les vider avant validation.
  */
 export interface ElementDraft {
+  variant: 'element'
   kind: ItemKind
   title: string
   notes: string
@@ -44,6 +46,29 @@ export interface ElementDraftValues {
 
 export type ElementDraftValidation =
   { ok: true; values: ElementDraftValues } | { ok: false; message: string }
+
+/**
+ * Brouillon d'une tâche encore sans bloc, éditée depuis « À planifier ».
+ * Les champs de placement (date, heure, durée du bloc) n'existent pas encore.
+ */
+export interface TaskDraft {
+  variant: 'task'
+  title: string
+  notes: string
+  categoryId: string | null
+  estimateMin: string
+}
+
+/** Valeurs validées d'une tâche éditée hors de la grille. */
+export interface TaskDraftValues {
+  title: string
+  notes: string
+  categoryId: string | null
+  estimateMin: number | null
+}
+
+export type TaskDraftValidation =
+  { ok: true; values: TaskDraftValues } | { ok: false; message: string }
 
 export interface NewElementDraftInput {
   date: LocalDate
@@ -75,6 +100,7 @@ export function createNewElementDraft(input: NewElementDraftInput): ElementDraft
   const startMin = clampMinutes(safeStartMin, 0, MINUTES_PER_DAY - 1)
 
   return {
+    variant: 'element',
     kind,
     title: '',
     notes: '',
@@ -96,6 +122,7 @@ export function elementDraftFrom(item: Item, block: Block): ElementDraft {
       : minutesToTime(clampMinutes(block.startMin, 0, MINUTES_PER_DAY - 1))
 
   return {
+    variant: 'element',
     kind: item.kind,
     title: item.title,
     notes: item.notes,
@@ -107,15 +134,6 @@ export function elementDraftFrom(item: Item, block: Block): ElementDraft {
     estimateMin: item.estimateMin === null ? '' : String(item.estimateMin),
     status: item.status
   }
-}
-
-function parsePositiveInteger(value: string): number | null {
-  const trimmed = value.trim()
-
-  if (!/^\d+$/.test(trimmed)) return null
-
-  const parsed = Number(trimmed)
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
 /**
@@ -134,7 +152,7 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
     return { ok: false, message: 'Choisissez une date valide.' }
   }
 
-  const durationMin = parsePositiveInteger(draft.durationMin)
+  const durationMin = parsePositiveMinutes(draft.durationMin)
 
   if (durationMin === null || durationMin > MINUTES_PER_DAY) {
     return {
@@ -170,7 +188,7 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
   let estimateMin: number | null = null
 
   if (draft.kind === 'task' && draft.estimateMin.trim().length > 0) {
-    estimateMin = parsePositiveInteger(draft.estimateMin)
+    estimateMin = parsePositiveMinutes(draft.estimateMin)
 
     if (estimateMin === null) {
       return {
@@ -195,6 +213,56 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
       durationMin,
       estimateMin,
       status
+    }
+  }
+}
+
+/** Brouillon d'une tâche encore sans bloc, ouverte depuis « À planifier ». */
+export function taskDraftFrom(item: Item): TaskDraft {
+  if (item.kind !== 'task') {
+    throw new RangeError('Seules les tâches peuvent être éditées depuis « À planifier ».')
+  }
+
+  return {
+    variant: 'task',
+    title: item.title,
+    notes: item.notes,
+    categoryId: item.categoryId,
+    estimateMin: item.estimateMin === null ? '' : String(item.estimateMin)
+  }
+}
+
+/**
+ * Vérifie une tâche éditée hors de la grille. Seuls le titre, la catégorie,
+ * les notes et la durée estimée sont modifiables ; aucun bloc n'est créé.
+ */
+export function validateTaskDraft(draft: TaskDraft): TaskDraftValidation {
+  const title = draft.title.trim()
+
+  if (title.length === 0) {
+    return { ok: false, message: 'Donnez un titre à la tâche.' }
+  }
+
+  let estimateMin: number | null = null
+
+  if (draft.estimateMin.trim().length > 0) {
+    estimateMin = parsePositiveMinutes(draft.estimateMin)
+
+    if (estimateMin === null) {
+      return {
+        ok: false,
+        message: 'La durée estimée doit être un nombre entier de minutes.'
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    values: {
+      title,
+      notes: draft.notes.trim(),
+      categoryId: draft.categoryId,
+      estimateMin
     }
   }
 }

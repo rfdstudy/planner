@@ -5,6 +5,7 @@ import {
   clampMinutes,
   differenceInCalendarDays,
   formatDaysUntil,
+  formatDurationMinutes,
   formatLocalDate,
   formatWeekLabel,
   formatWeekdayShort,
@@ -16,6 +17,7 @@ import {
   isLocalDate,
   minutesToTime,
   parseLocalDate,
+  parsePositiveMinutes,
   snapMinutes,
   timeToMinutes,
   todayLocalDate
@@ -169,5 +171,29 @@ describe('minutes et heures', () => {
     expect(clampMinutes(600, 480, 720)).toBe(600)
     expect(clampMinutes(400, 480, 720)).toBe(480)
     expect(clampMinutes(800, 480, 720)).toBe(720)
+  })
+
+  it('formate une durée en minutes pour le panneau', () => {
+    expect(formatDurationMinutes(0)).toBe('0 min')
+    expect(formatDurationMinutes(45)).toBe('45 min')
+    expect(formatDurationMinutes(60)).toBe('1 h')
+    expect(formatDurationMinutes(90)).toBe('1 h 30')
+    expect(formatDurationMinutes(120)).toBe('2 h')
+    expect(formatDurationMinutes(195)).toBe('3 h 15')
+  })
+
+  it('refuse les durées négatives ou non entières', () => {
+    expect(() => formatDurationMinutes(-1)).toThrow(RangeError)
+    expect(() => formatDurationMinutes(45.5)).toThrow(RangeError)
+  })
+
+  it('lit une durée entière positive saisie en minutes', () => {
+    expect(parsePositiveMinutes('45')).toBe(45)
+    expect(parsePositiveMinutes(' 60 ')).toBe(60)
+    expect(parsePositiveMinutes('0')).toBeNull()
+    expect(parsePositiveMinutes('-5')).toBeNull()
+    expect(parsePositiveMinutes('45,5')).toBeNull()
+    expect(parsePositiveMinutes('45.5')).toBeNull()
+    expect(parsePositiveMinutes('')).toBeNull()
   })
 })

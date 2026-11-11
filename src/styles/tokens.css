@@ -42,6 +42,11 @@
   --radius-panel: 10px;
   --radius-ctl: 8px;
 
+  /* Panneau « À planifier » */
+  --inbox-width: 280px;
+  --inbox-collapsed-width: 40px;
+  --inbox-row-height: 36px;
+
   /* Ombre : menus et bloc déplacé uniquement */
   --shadow-float: 0 6px 20px rgba(31, 35, 40, 0.12);
 
