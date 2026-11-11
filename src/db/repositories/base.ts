@@ -93,6 +93,29 @@ export abstract class BaseRepository<T extends BaseRecord> {
     return deleted
   }
 
+  /**
+   * Annule une suppression logique. Une ligne déjà active est renvoyée telle
+   * quelle, ce qui rend la restauration sûre à rejouer.
+   */
+  async restore(id: string): Promise<T> {
+    const record = await this.table.get(id)
+
+    if (record === undefined) {
+      throw new RecordNotFoundError(this.entityLabel, id)
+    }
+
+    if (record.deletedAt === null) return record
+
+    const restored = {
+      ...record,
+      updatedAt: this.nowIso(),
+      deletedAt: null
+    }
+
+    await this.table.put(restored)
+    return restored
+  }
+
   protected async requireActive(id: string): Promise<T> {
     const record = await this.table.get(id)
 

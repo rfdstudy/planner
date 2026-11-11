@@ -1,4 +1,6 @@
+import { memo, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { DRAG_START_DISTANCE_PX } from '../../core/drag'
 import { getBlockContentMode, showsBlockCategory } from '../../core/schedule'
 import { MINUTES_PER_DAY, formatDaysUntil, minutesToTime } from '../../core/time'
 import type { LocalDate } from '../../core/types'
@@ -6,19 +8,28 @@ import { categoryColorStyle } from '../categoryColorStyle'
 import type { FloatingAnchor, PlacedEntry } from './weekTypes'
 import styles from './TimeBlock.module.css'
 
+export type TimeBlockDragMode = 'move' | 'resize'
+
 interface TimeBlockProps {
   entry: PlacedEntry
   today: LocalDate
+  dragMode: TimeBlockDragMode | null
   onOpen: (entry: PlacedEntry, anchor: FloatingAnchor) => void
   onToggleDone: (entry: PlacedEntry, done: boolean) => void
+  onMoveStart: (entry: PlacedEntry, event: React.PointerEvent<HTMLDivElement>) => void
+  onResizeStart: (entry: PlacedEntry, event: React.PointerEvent<HTMLDivElement>) => void
 }
 
-export function TimeBlock({
+export const TimeBlock = memo(function TimeBlock({
   entry,
   today,
+  dragMode,
   onOpen,
-  onToggleDone
+  onToggleDone,
+  onMoveStart,
+  onResizeStart
 }: TimeBlockProps): React.JSX.Element | null {
+  const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
   const { block, item, category, placement } = entry
 
   if (placement.startMin >= MINUTES_PER_DAY) return null
@@ -38,7 +49,9 @@ export function TimeBlock({
     styles.block,
     styles[item.kind],
     isCompact ? styles.compact : '',
-    isDone ? styles.done : ''
+    isDone ? styles.done : '',
+    dragMode === 'move' ? styles.dragging : '',
+    dragMode === 'resize' ? styles.resizing : ''
   ]
     .filter((className) => className !== '')
     .join(' ')
@@ -51,8 +64,40 @@ export function TimeBlock({
     ...(category === null ? {} : categoryColorStyle(category.color))
   }
 
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) return
+
+    const target = event.target
+
+    if (target instanceof HTMLElement && target.closest('input, [data-resize-handle]') !== null) {
+      return
+    }
+
+    pointerDownRef.current = { x: event.clientX, y: event.clientY }
+    onMoveStart(entry, event)
+  }
+
+  function handleResizePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    event.stopPropagation()
+
+    if (event.button !== 0) return
+
+    pointerDownRef.current = { x: event.clientX, y: event.clientY }
+    onResizeStart(entry, event)
+  }
+
   function handleClick(event: React.MouseEvent<HTMLDivElement>): void {
     event.stopPropagation()
+
+    const pointerDown = pointerDownRef.current
+    pointerDownRef.current = null
+
+    if (event.detail !== 0 && pointerDown !== null) {
+      const distance = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y)
+
+      if (distance > DRAG_START_DISTANCE_PX) return
+    }
+
     onOpen(entry, { x: event.clientX, y: event.clientY })
   }
 
@@ -77,8 +122,10 @@ export function TimeBlock({
       role="button"
       tabIndex={0}
       aria-label={`Modifier ${item.title}`}
+      data-block-id={block.id}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
     >
       <div className={styles.content}>
         <div className={styles.titleLine}>
@@ -116,6 +163,14 @@ export function TimeBlock({
           <span className={styles.categoryLine}>{category.name}</span>
         )}
       </div>
+
+      <div
+        className={styles.resizeHandle}
+        data-resize-handle
+        aria-hidden="true"
+        onPointerDown={handleResizePointerDown}
+        onClick={(event) => event.stopPropagation()}
+      />
     </div>
   )
-}
+})

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { liveQuery } from 'dexie'
+import { DRAG_START_DISTANCE_PX } from '../../core/drag'
 import { listInboxTasks, validateQuickTaskDraft, type InboxTask } from '../../core/inbox'
 import { taskDraftFrom, type TaskDraft, type TaskDraftValues } from '../../core/elementEditor'
 import { formatDurationMinutes } from '../../core/time'
@@ -10,6 +11,12 @@ import { Icon } from '../components/Icon'
 import { ElementEditor } from './ElementEditor'
 import type { FloatingAnchor } from './weekTypes'
 import styles from './InboxPanel.module.css'
+
+interface InboxPanelProps {
+  onTaskDragStart: (task: InboxTask, event: React.PointerEvent<HTMLButtonElement>) => void
+  /** Vrai lorsqu'un bloc est survolé au-dessus du panneau. */
+  dropActive: boolean
+}
 
 interface InboxSnapshot {
   tasks: InboxTask[]
@@ -32,9 +39,12 @@ interface TaskEditorSession {
 /**
  * Panneau latéral « À planifier ». Il ne fait aucune écriture directe : les
  * ajouts et modifications passent par les repositories, la liste se met à jour
- * via `useLiveQuery`.
+ * via `useLiveQuery`. Les rangées servent aussi de source de glisser.
  */
-export function InboxPanel(): React.JSX.Element {
+export const InboxPanel = memo(function InboxPanel({
+  onTaskDragStart,
+  dropActive
+}: InboxPanelProps): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [snapshot, setSnapshot] = useState<InboxSnapshot | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -45,6 +55,7 @@ export function InboxPanel(): React.JSX.Element {
   const [formError, setFormError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [taskEditor, setTaskEditor] = useState<TaskEditorSession | null>(null)
+  const taskPointerDownRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const subscription = liveQuery(async () => {
@@ -193,6 +204,29 @@ export function InboxPanel(): React.JSX.Element {
     })
   }
 
+  function handleTaskPointerDown(
+    task: InboxTask,
+    event: React.PointerEvent<HTMLButtonElement>
+  ): void {
+    if (event.button !== 0) return
+
+    taskPointerDownRef.current = { x: event.clientX, y: event.clientY }
+    onTaskDragStart(task, event)
+  }
+
+  function handleTaskClick(task: InboxTask, event: React.MouseEvent<HTMLButtonElement>): void {
+    const pointerDown = taskPointerDownRef.current
+    taskPointerDownRef.current = null
+
+    if (event.detail !== 0 && pointerDown !== null) {
+      const distance = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y)
+
+      if (distance > DRAG_START_DISTANCE_PX) return
+    }
+
+    openTask(task, event)
+  }
+
   async function handleTaskSubmit(values: TaskDraftValues): Promise<void> {
     if (taskEditor === null) return
 
@@ -208,8 +242,15 @@ export function InboxPanel(): React.JSX.Element {
   return (
     <>
       <aside
-        className={collapsed ? `${styles.panel} ${styles.collapsed}` : styles.panel}
+        className={[
+          styles.panel,
+          collapsed ? styles.collapsed : '',
+          dropActive ? styles.dropTarget : ''
+        ]
+          .filter((className) => className !== '')
+          .join(' ')}
         aria-label="À planifier"
+        data-inbox-drop=""
       >
         {collapsed ? (
           <div className={styles.collapsedHeader}>
@@ -373,7 +414,8 @@ export function InboxPanel(): React.JSX.Element {
                     className={
                       task.item.status === 'done' ? `${styles.row} ${styles.rowDone}` : styles.row
                     }
-                    onClick={(event) => openTask(task, event)}
+                    onPointerDown={(event) => handleTaskPointerDown(task, event)}
+                    onClick={(event) => handleTaskClick(task, event)}
                   >
                     <span
                       className={styles.dot}
@@ -392,6 +434,12 @@ export function InboxPanel(): React.JSX.Element {
             </div>
           </>
         )}
+
+        {dropActive && !collapsed && (
+          <div className={styles.dropHint} aria-hidden="true">
+            Relâcher pour retirer le bloc
+          </div>
+        )}
       </aside>
 
       {taskEditor !== null && (
@@ -408,4 +456,4 @@ export function InboxPanel(): React.JSX.Element {
       )}
     </>
   )
-}
+})

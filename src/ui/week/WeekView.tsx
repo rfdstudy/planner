@@ -11,6 +11,7 @@ import { layoutBlocks } from '../../core/schedule'
 import {
   MINUTES_PER_DAY,
   formatDaysUntil,
+  formatDurationMinutes,
   formatWeekdayShort,
   formatWeekLabel,
   getWeekDays,
@@ -23,10 +24,12 @@ import type { Block, Category, CategoryGroup, Item, LocalDate } from '../../core
 import { loadDemoWeek } from '../../db/demoWeek'
 import { repositories } from '../../db/repositories'
 import { useUiStore } from '../../state/ui'
+import { categoryColorStyle } from '../categoryColorStyle'
 import { ElementEditor } from './ElementEditor'
 import { InboxPanel } from './InboxPanel'
 import { TimeBlock } from './TimeBlock'
 import { WeekTopBar } from './WeekTopBar'
+import { useScheduleDrag } from './useScheduleDrag'
 import type { FloatingAnchor, PlacedEntry, WeekData, WeekDayData, WeekEntry } from './weekTypes'
 import styles from './WeekView.module.css'
 
@@ -71,6 +74,14 @@ export function WeekView(): React.JSX.Element {
 
     return byDate
   }, [data])
+  const daysRef = useRef<HTMLDivElement>(null)
+  const drag = useScheduleDrag({
+    scrollRef,
+    daysRef,
+    weekDays,
+    daysData,
+    onError: setActionError
+  })
 
   const today = todayLocalDate(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
@@ -145,7 +156,7 @@ export function WeekView(): React.JSX.Element {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'n' && event.key !== 'N') return
       if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return
-      if (editor !== null || isTextEntryTarget(event.target)) return
+      if (editor !== null || drag.session !== null || isTextEntryTarget(event.target)) return
 
       event.preventDefault()
       openNewTask()
@@ -153,7 +164,7 @@ export function WeekView(): React.JSX.Element {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [editor, openNewTask])
+  }, [drag.session, editor, openNewTask])
 
   async function handleLoadDemo(): Promise<void> {
     if (demoLoading) return
@@ -183,7 +194,7 @@ export function WeekView(): React.JSX.Element {
     }
   }
 
-  function openEntry(entry: WeekEntry, anchor: FloatingAnchor): void {
+  const openEntry = useCallback((entry: WeekEntry, anchor: FloatingAnchor): void => {
     setActionError(null)
     setEditor({
       mode: 'edit',
@@ -192,10 +203,10 @@ export function WeekView(): React.JSX.Element {
       anchor,
       draft: elementDraftFrom(entry.item, entry.block)
     })
-  }
+  }, [])
 
   function handleSlotClick(date: LocalDate, event: React.MouseEvent<HTMLDivElement>): void {
-    if (event.button !== 0) return
+    if (event.button !== 0 || drag.session !== null) return
 
     const rect = event.currentTarget.getBoundingClientRect()
     const startMin = snapNewBlockStart(event.clientY - rect.top)
@@ -208,7 +219,7 @@ export function WeekView(): React.JSX.Element {
     })
   }
 
-  async function handleToggleDone(entry: PlacedEntry, done: boolean): Promise<void> {
+  const handleToggleDone = useCallback(async (entry: PlacedEntry, done: boolean): Promise<void> => {
     setActionError(null)
 
     try {
@@ -216,7 +227,38 @@ export function WeekView(): React.JSX.Element {
     } catch {
       setActionError('Le statut de la tâche n’a pas pu être mis à jour.')
     }
-  }
+  }, [])
+
+  const handleUndo = useCallback(async (): Promise<void> => {
+    try {
+      const action = await repositories.history.undo()
+
+      if (action !== null) {
+        setActionError(null)
+      }
+    } catch {
+      setActionError('La dernière action n’a pas pu être annulée.')
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const isUndo =
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'z'
+
+      if (!isUndo) return
+      if (isTextEntryTarget(event.target) || editor !== null || drag.session !== null) return
+
+      event.preventDefault()
+      void handleUndo()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [drag.session, editor, handleUndo])
 
   async function handleEditorSubmit(values: ElementDraftValues): Promise<void> {
     if (editor === null) return
@@ -340,40 +382,112 @@ export function WeekView(): React.JSX.Element {
               ))}
             </div>
 
-            <div className={styles.days}>
-              {weekDays.map((date) => (
-                <div
-                  className={styles.dayColumn}
-                  key={date}
-                  title="Cliquer pour ajouter un bloc"
-                  onClick={(event) => handleSlotClick(date, event)}
-                >
-                  {(daysData.get(date)?.timed ?? []).map((entry) => (
-                    <TimeBlock
-                      key={entry.block.id}
-                      entry={entry}
-                      today={today}
-                      onOpen={openEntry}
-                      onToggleDone={(placedEntry, done) => void handleToggleDone(placedEntry, done)}
-                    />
-                  ))}
+            <div className={styles.days} ref={daysRef}>
+              {weekDays.map((date) => {
+                const timedEntries = daysData.get(date)?.timed ?? []
+                const dragSession = drag.session
+                const dragTarget = drag.preview?.target ?? null
+                const freeSlots = dragSession?.freeSlotsByDate.get(date) ?? []
 
-                  {date === today && (
-                    <div
-                      className={styles.nowLine}
-                      style={{ top: `${nowMinutes}px` }}
-                      aria-hidden="true"
-                    >
-                      <span className={styles.nowDot} />
-                    </div>
-                  )}
-                </div>
-              ))}
+                return (
+                  <div
+                    className={styles.dayColumn}
+                    key={date}
+                    title="Cliquer pour ajouter un bloc"
+                    onClick={(event) => handleSlotClick(date, event)}
+                  >
+                    {freeSlots.map((slot) => (
+                      <div
+                        key={`free-${slot.startMin}`}
+                        className={styles.freeSlot}
+                        style={{ top: `${slot.startMin}px`, height: `${slot.durationMin}px` }}
+                        aria-hidden="true"
+                      />
+                    ))}
+
+                    {timedEntries.map((entry) => {
+                      const blockDragMode =
+                        dragSession?.blockId === entry.block.id
+                          ? dragSession.kind === 'move' || dragSession.kind === 'resize'
+                            ? dragSession.kind
+                            : null
+                          : null
+
+                      return (
+                        <TimeBlock
+                          key={entry.block.id}
+                          entry={entry}
+                          today={today}
+                          dragMode={blockDragMode}
+                          onOpen={openEntry}
+                          onToggleDone={handleToggleDone}
+                          onMoveStart={drag.startBlockMove}
+                          onResizeStart={drag.startBlockResize}
+                        />
+                      )
+                    })}
+
+                    {dragSession !== null && dragTarget !== null && dragTarget.date === date && (
+                      <div
+                        className={
+                          dragSession.kind === 'resize'
+                            ? `${styles.ghost} ${styles.ghostResize}`
+                            : styles.ghost
+                        }
+                        style={{
+                          top: `${dragTarget.startMin}px`,
+                          height: `${dragTarget.durationMin}px`
+                        }}
+                        aria-hidden="true"
+                      >
+                        {dragSession.kind !== 'resize' && dragTarget.durationMin >= 30 && (
+                          <span className={styles.ghostTitle}>{dragSession.title}</span>
+                        )}
+                        <span className={styles.ghostTime}>
+                          {minutesToTime(dragTarget.startMin)} –{' '}
+                          {minutesToTime(dragTarget.startMin + dragTarget.durationMin)}
+                        </span>
+                      </div>
+                    )}
+
+                    {date === today && (
+                      <div
+                        className={styles.nowLine}
+                        style={{ top: `${nowMinutes}px` }}
+                        aria-hidden="true"
+                      >
+                        <span className={styles.nowDot} />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
-        <InboxPanel />
+        <InboxPanel
+          onTaskDragStart={drag.startTaskDrag}
+          dropActive={drag.preview?.overInbox === true && drag.session?.kind === 'move'}
+        />
       </div>
+
+      {drag.session !== null && drag.session.kind === 'create' && (
+        <div
+          className={styles.floatingCard}
+          data-drag-card
+          style={
+            drag.session.categoryColor === null
+              ? undefined
+              : categoryColorStyle(drag.session.categoryColor)
+          }
+          aria-hidden="true"
+        >
+          <span className={styles.floatingCardTitle}>{drag.session.title}</span>
+          <span className={styles.floatingCardDuration}>
+            {formatDurationMinutes(drag.session.durationMin)}
+          </span>
+        </div>
+      )}
 
       {editor !== null && data !== null && (
         <ElementEditor

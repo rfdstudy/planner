@@ -3,7 +3,25 @@
   overflow: hidden;
   border-radius: var(--radius-block);
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
   transition: background-color var(--t-fast);
+}
+
+/* Pendant un geste : aucun effet coûteux, seule la transformation CSS agit. */
+.dragging {
+  z-index: 30;
+  opacity: 0.95;
+  outline: 1px solid var(--accent);
+  cursor: grabbing;
+  will-change: transform;
+}
+
+.resizing {
+  z-index: 30;
+  outline: 1px solid var(--accent);
+  cursor: ns-resize;
+  will-change: height;
 }
 
 .fixed {
@@ -48,6 +66,45 @@
 .done {
   opacity: 0.5;
   filter: grayscale(1);
+}
+
+/* Poignée de redimensionnement : visible uniquement au survol du bas du bloc. */
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 6px;
+  cursor: ns-resize;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+
+.resizeHandle::after {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.block:hover .resizeHandle,
+.block:focus-within .resizeHandle,
+.dragging .resizeHandle,
+.resizing .resizeHandle {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block,
+  .resizeHandle {
+    transition: none;
+  }
 }
 
 .content {

@@ -191,6 +191,93 @@
   );
 }
 
+/* Créneaux libres : visibles uniquement pendant un geste. */
+.freeSlot {
+  position: absolute;
+  right: 1px;
+  left: 1px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-block);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
+/* Emplacement d'arrivée du bloc déplacé ou de la tâche glissée. */
+.ghost {
+  position: absolute;
+  right: 1px;
+  left: 1px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 1px 6px;
+  overflow: hidden;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-block);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  pointer-events: none;
+}
+
+.ghostTitle {
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ghostTime {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.ghostResize {
+  z-index: 40;
+  justify-content: flex-end;
+  background: transparent;
+}
+
+/* Carte qui suit le pointeur quand on glisse une tâche du panneau. */
+.floatingCard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 240px;
+  padding: 6px 10px 6px 8px;
+  border-left: 3px solid var(--category-color, var(--line-strong));
+  border-radius: var(--radius-block);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+  transform: translate3d(-9999px, -9999px, 0);
+  will-change: transform;
+}
+
+.floatingCardTitle {
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.floatingCardDuration {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .nowLine {
   position: absolute;
   right: 0;
