@@ -20,7 +20,7 @@ export interface Repositories {
 /** Construit les repositories pour une base donnée (utile aux tests). */
 export function createRepositories(database: PlannerDatabase): Repositories {
   return {
-    categoryGroups: new CategoryGroupRepository(database.categoryGroups),
+    categoryGroups: new CategoryGroupRepository(database),
     categories: new CategoryRepository(database),
     items: new ItemRepository(database.items),
     blocks: new BlockRepository(database.blocks),

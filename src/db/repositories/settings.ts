@@ -28,4 +28,15 @@ export class SettingRepository extends BaseRepository<Setting> {
 
     return setting
   }
+
+  /** Crée ou met à jour le réglage associé à une clé. */
+  async setValue(key: string, value: JsonValue): Promise<Setting> {
+    const existing = await this.getByKey(key)
+
+    if (existing !== undefined) {
+      return this.update(existing.id, { value })
+    }
+
+    return this.create({ key, value })
+  }
 }

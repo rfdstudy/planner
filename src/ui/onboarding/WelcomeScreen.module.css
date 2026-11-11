@@ -1,0 +1,248 @@
+.screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--sp-8) var(--sp-6);
+  overflow-y: auto;
+  background: var(--bg-subtle);
+}
+
+.card {
+  width: 100%;
+  max-width: 620px;
+  margin-top: 4vh;
+  padding: var(--sp-8);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+}
+
+.wordmark {
+  display: block;
+  margin-bottom: var(--sp-6);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+}
+
+.title {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  max-width: 52ch;
+  margin-top: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  line-height: 1.6;
+}
+
+.hint {
+  margin-top: var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.error {
+  margin-top: var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+
+.sectionTitle {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.nameInput {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.nameInput:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.nameInput:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.select {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.select:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.select:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.primaryButton {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: opacity var(--t-fast);
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+}
+
+.ghostButton {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition: background-color var(--t-fast);
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.ghostButton:disabled {
+  opacity: 0.5;
+}
+
+.draftSection {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+
+.draftGroup + .draftGroup {
+  margin-top: var(--sp-4);
+}
+
+.draftGroupName {
+  margin-bottom: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.draftRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 36px;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--category-color);
+}
+
+.draftName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.removeButton {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-block);
+  color: var(--text-3);
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.removeButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+
+.removeButton:disabled {
+  opacity: 0.5;
+}
+
+.emptyHint {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  .screen {
+    padding: var(--sp-4);
+  }
+
+  .card {
+    margin-top: 0;
+    padding: var(--sp-6);
+  }
+}

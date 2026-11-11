@@ -44,6 +44,22 @@ textarea {
   color: inherit;
 }
 
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Chiffres alignés pour les heures et les durées. */
 time,
 .tabular-nums {
