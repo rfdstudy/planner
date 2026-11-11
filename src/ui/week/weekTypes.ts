@@ -1,5 +1,11 @@
 import type { BlockPlacement } from '../../core/schedule'
-import type { Block, Category, Item, LocalDate } from '../../core/types'
+import type { Block, Category, CategoryGroup, Item, LocalDate } from '../../core/types'
+
+/** Point d'ancrage de la fenêtre flottante, en coordonnées du viewport. */
+export interface FloatingAnchor {
+  x: number
+  y: number
+}
 
 /** Bloc accompagné de son élément et de sa catégorie éventuelle. */
 export interface WeekEntry {
@@ -22,4 +28,6 @@ export interface WeekDayData {
 export interface WeekData {
   weekStart: LocalDate
   days: WeekDayData[]
+  categories: Category[]
+  categoryGroups: CategoryGroup[]
 }

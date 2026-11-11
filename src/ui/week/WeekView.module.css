@@ -118,7 +118,14 @@
   background: var(--alert-soft);
   color: var(--text);
   font-size: var(--fs-xs);
+  text-align: left;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+
+.examPill:hover {
+  background: color-mix(in srgb, var(--alert) 9%, var(--alert-soft));
 }
 
 .examPillDot {

@@ -1,5 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { liveQuery } from 'dexie'
+import {
+  createNewElementDraft,
+  elementDraftFrom,
+  snapNewBlockStart,
+  type ElementDraft,
+  type ElementDraftValues
+} from '../../core/elementEditor'
 import { layoutBlocks } from '../../core/schedule'
 import {
   MINUTES_PER_DAY,
@@ -12,16 +19,28 @@ import {
   parseLocalDate,
   todayLocalDate
 } from '../../core/time'
-import type { Block, Category, Item, LocalDate } from '../../core/types'
+import type { Block, Category, CategoryGroup, Item, LocalDate } from '../../core/types'
 import { loadDemoWeek } from '../../db/demoWeek'
 import { repositories } from '../../db/repositories'
 import { useUiStore } from '../../state/ui'
+import { ElementEditor } from './ElementEditor'
 import { TimeBlock } from './TimeBlock'
 import { WeekTopBar } from './WeekTopBar'
-import type { PlacedEntry, WeekData, WeekDayData, WeekEntry } from './weekTypes'
+import type { FloatingAnchor, PlacedEntry, WeekData, WeekDayData, WeekEntry } from './weekTypes'
 import styles from './WeekView.module.css'
 
 const INITIAL_SCROLL_LEAD_MIN = 30
+const OTHER_DAY_START_MIN = 8 * 60
+
+type ElementEditorSession =
+  | { mode: 'create'; anchor: FloatingAnchor; draft: ElementDraft }
+  | {
+      mode: 'edit'
+      itemId: string
+      blockId: string
+      anchor: FloatingAnchor
+      draft: ElementDraft
+    }
 
 export function WeekView(): React.JSX.Element {
   const weekStart = useUiStore((state) => state.weekStart)
@@ -33,8 +52,10 @@ export function WeekView(): React.JSX.Element {
 
   const [snapshot, setSnapshot] = useState<WeekData | null>(null)
   const [loadError, setLoadError] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [demoLoading, setDemoLoading] = useState(false)
   const [demoError, setDemoError] = useState<string | null>(null)
+  const [editor, setEditor] = useState<ElementEditorSession | null>(null)
   const [now, setNow] = useState(() => new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -57,20 +78,21 @@ export function WeekView(): React.JSX.Element {
     ? 'La semaine n’a pas pu être chargée.'
     : demoError !== null
       ? demoError
-      : null
+      : actionError
 
   useEffect(() => {
     const days = getWeekDays(weekStart)
     const weekEnd = getWeekEnd(weekStart)
 
     const subscription = liveQuery(async () => {
-      const [blocks, items, categories] = await Promise.all([
+      const [blocks, items, categories, categoryGroups] = await Promise.all([
         repositories.blocks.listBetween(weekStart, weekEnd),
         repositories.items.list(),
-        repositories.categories.list()
+        repositories.categories.list(),
+        repositories.categoryGroups.list()
       ])
 
-      return buildWeekData(weekStart, days, blocks, items, categories)
+      return buildWeekData(weekStart, days, blocks, items, categories, categoryGroups)
     }).subscribe({
       next: (weekData) => {
         setSnapshot(weekData)
@@ -102,6 +124,36 @@ export function WeekView(): React.JSX.Element {
     container.scrollTop = targetMin
   }, [weekStart])
 
+  const openNewTask = useCallback((): void => {
+    const reference = new Date()
+    const referenceDate = todayLocalDate(reference)
+    const date = weekDays.includes(referenceDate) ? referenceDate : weekStart
+    const referenceMinutes = reference.getHours() * 60 + reference.getMinutes()
+    const startMin =
+      date === referenceDate ? snapNewBlockStart(referenceMinutes) : OTHER_DAY_START_MIN
+
+    setActionError(null)
+    setEditor({
+      mode: 'create',
+      anchor: { x: Math.max(12, window.innerWidth / 2 - 174), y: 96 },
+      draft: createNewElementDraft({ date, startMin })
+    })
+  }, [weekDays, weekStart])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'n' && event.key !== 'N') return
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return
+      if (editor !== null || isTextEntryTarget(event.target)) return
+
+      event.preventDefault()
+      openNewTask()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [editor, openNewTask])
+
   async function handleLoadDemo(): Promise<void> {
     if (demoLoading) return
 
@@ -128,6 +180,85 @@ export function WeekView(): React.JSX.Element {
     if (container !== null) {
       container.scrollTop = Math.max(0, reference.getHours() * 60 + reference.getMinutes() - 120)
     }
+  }
+
+  function openEntry(entry: WeekEntry, anchor: FloatingAnchor): void {
+    setActionError(null)
+    setEditor({
+      mode: 'edit',
+      itemId: entry.item.id,
+      blockId: entry.block.id,
+      anchor,
+      draft: elementDraftFrom(entry.item, entry.block)
+    })
+  }
+
+  function handleSlotClick(date: LocalDate, event: React.MouseEvent<HTMLDivElement>): void {
+    if (event.button !== 0) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const startMin = snapNewBlockStart(event.clientY - rect.top)
+
+    setActionError(null)
+    setEditor({
+      mode: 'create',
+      anchor: { x: event.clientX, y: event.clientY },
+      draft: createNewElementDraft({ date, startMin })
+    })
+  }
+
+  async function handleToggleDone(entry: PlacedEntry, done: boolean): Promise<void> {
+    setActionError(null)
+
+    try {
+      await repositories.items.setTaskStatus(entry.item.id, done ? 'done' : 'todo')
+    } catch {
+      setActionError('Le statut de la tâche n’a pas pu être mis à jour.')
+    }
+  }
+
+  async function handleEditorSubmit(values: ElementDraftValues): Promise<void> {
+    if (editor === null) return
+
+    const item = {
+      kind: values.kind,
+      title: values.title,
+      notes: values.notes,
+      categoryId: values.categoryId,
+      estimateMin: values.estimateMin,
+      status: values.status
+    }
+    const block = {
+      date: values.date,
+      startMin: values.startMin,
+      durationMin: values.durationMin
+    }
+
+    if (editor.mode === 'create') {
+      await repositories.elements.create({ item, block })
+    } else {
+      await repositories.elements.update({
+        itemId: editor.itemId,
+        blockId: editor.blockId,
+        item,
+        block
+      })
+    }
+
+    setEditor(null)
+    setActionError(null)
+
+    if (!weekDays.includes(values.date)) {
+      showWeek(values.date)
+    }
+  }
+
+  async function handleEditorDelete(): Promise<void> {
+    if (editor === null || editor.mode !== 'edit') return
+
+    await repositories.blocks.softDelete(editor.blockId)
+    setEditor(null)
+    setActionError(null)
   }
 
   return (
@@ -177,12 +308,18 @@ export function WeekView(): React.JSX.Element {
               {weekDays.map((date) => (
                 <div className={styles.examCell} key={date}>
                   {(daysData.get(date)?.exams ?? []).map((entry) => (
-                    <span className={styles.examPill} key={entry.block.id} title={entry.item.title}>
+                    <button
+                      type="button"
+                      className={styles.examPill}
+                      key={entry.block.id}
+                      title={entry.item.title}
+                      onClick={(event) => openEntry(entry, { x: event.clientX, y: event.clientY })}
+                    >
                       <span className={styles.examPillDot} aria-hidden="true" />
                       <span className={styles.examPillTitle}>
                         {entry.item.title} · {formatDaysUntil(entry.block.date, today)}
                       </span>
-                    </span>
+                    </button>
                   ))}
                 </div>
               ))}
@@ -201,9 +338,20 @@ export function WeekView(): React.JSX.Element {
 
           <div className={styles.days}>
             {weekDays.map((date) => (
-              <div className={styles.dayColumn} key={date}>
+              <div
+                className={styles.dayColumn}
+                key={date}
+                title="Cliquer pour ajouter un bloc"
+                onClick={(event) => handleSlotClick(date, event)}
+              >
                 {(daysData.get(date)?.timed ?? []).map((entry) => (
-                  <TimeBlock key={entry.block.id} entry={entry} today={today} />
+                  <TimeBlock
+                    key={entry.block.id}
+                    entry={entry}
+                    today={today}
+                    onOpen={openEntry}
+                    onToggleDone={(placedEntry, done) => void handleToggleDone(placedEntry, done)}
+                  />
                 ))}
 
                 {date === today && (
@@ -220,7 +368,30 @@ export function WeekView(): React.JSX.Element {
           </div>
         </div>
       </div>
+
+      {editor !== null && data !== null && (
+        <ElementEditor
+          key={
+            editor.mode === 'edit' ? editor.blockId : `${editor.draft.date}-${editor.draft.time}`
+          }
+          mode={editor.mode}
+          initialDraft={editor.draft}
+          anchor={editor.anchor}
+          categories={data.categories}
+          categoryGroups={data.categoryGroups}
+          onClose={() => setEditor(null)}
+          onSubmit={handleEditorSubmit}
+          onDelete={editor.mode === 'edit' ? handleEditorDelete : undefined}
+        />
+      )}
     </div>
+  )
+}
+
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.closest('input, textarea, select, [contenteditable="true"]') !== null
   )
 }
 
@@ -229,13 +400,16 @@ function buildWeekData(
   days: readonly LocalDate[],
   blocks: readonly Block[],
   items: readonly Item[],
-  categories: readonly Category[]
+  categories: readonly Category[],
+  categoryGroups: readonly CategoryGroup[]
 ): WeekData {
   const itemsById = new Map(items.map((item) => [item.id, item]))
   const categoriesById = new Map(categories.map((category) => [category.id, category]))
 
   return {
     weekStart,
+    categories: [...categories],
+    categoryGroups: [...categoryGroups],
     days: days.map((date) => {
       const entries: WeekEntry[] = []
 

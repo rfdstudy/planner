@@ -2,6 +2,7 @@
   position: absolute;
   overflow: hidden;
   border-radius: var(--radius-block);
+  cursor: pointer;
   transition: background-color var(--t-fast);
 }
 
@@ -109,6 +110,28 @@
   margin-left: auto;
 }
 
+.doneCheckbox {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+
+.block:hover .doneCheckbox,
+.block:focus-within .doneCheckbox,
+.doneCheckbox:focus-visible,
+.done .doneCheckbox {
+  opacity: 1;
+}
+
+.doneCheckbox:disabled {
+  cursor: default;
+}
+
 .timeLine {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,4 +163,9 @@
 .compact .title {
   font-size: var(--fs-xs);
   line-height: 1.15;
+}
+
+.compact .doneCheckbox {
+  width: 11px;
+  height: 11px;
 }

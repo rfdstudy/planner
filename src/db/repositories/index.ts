@@ -2,6 +2,7 @@ import { db, type PlannerDatabase } from '../database'
 import { BlockRepository } from './blocks'
 import { CategoryGroupRepository } from './categoryGroups'
 import { CategoryRepository } from './categories'
+import { ElementRepository } from './elements'
 import { ItemRepository } from './items'
 import { OverrideRepository } from './overrides'
 import { SettingRepository } from './settings'
@@ -12,6 +13,7 @@ export interface Repositories {
   categories: CategoryRepository
   items: ItemRepository
   blocks: BlockRepository
+  elements: ElementRepository
   templates: TemplateRepository
   overrides: OverrideRepository
   settings: SettingRepository
@@ -24,6 +26,7 @@ export function createRepositories(database: PlannerDatabase): Repositories {
     categories: new CategoryRepository(database),
     items: new ItemRepository(database.items),
     blocks: new BlockRepository(database.blocks),
+    elements: new ElementRepository(database),
     templates: new TemplateRepository(database.templates),
     overrides: new OverrideRepository(database.overrides),
     settings: new SettingRepository(database.settings)
