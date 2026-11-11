@@ -11,7 +11,7 @@ import {
 } from '../../core/drag'
 import type { InboxTask } from '../../core/inbox'
 import { getFreeSlots, type FreeSlot } from '../../core/schedule'
-import { MINUTES_PER_DAY, SNAP_MINUTES } from '../../core/time'
+import { MINUTES_PER_DAY } from '../../core/time'
 import type { LocalDate } from '../../core/types'
 import { repositories } from '../../db/repositories'
 import type { PlacedEntry, ScheduleDayData } from './scheduleTypes'
@@ -63,6 +63,10 @@ interface UseScheduleDragOptions {
   daysRef: RefObject<HTMLDivElement>
   days: readonly LocalDate[]
   daysData: ReadonlyMap<LocalDate, ScheduleDayData>
+  /** Pas d'accrochage choisi dans les réglages. */
+  snapStepMin: number
+  /** Durée utilisée quand une tâche n'a pas d'estimation. */
+  defaultTaskDurationMin: number
   onError: (message: string) => void
   /** Un bloc de semaine type demande un choix « cette fois / toutes les semaines ». */
   onTemplateMove: (entry: PlacedEntry, target: DragTarget) => void
@@ -122,6 +126,8 @@ export function useScheduleDrag({
   daysRef,
   days: daysProp,
   daysData,
+  snapStepMin,
+  defaultTaskDurationMin,
   onError,
   onTemplateMove,
   onTemplateResize,
@@ -322,7 +328,7 @@ export function useScheduleDrag({
           target = {
             date: active.sourceDate,
             startMin: active.sourceStartMin,
-            durationMin: getResizeDurationMin(active.sourceStartMin, zone.minute)
+            durationMin: getResizeDurationMin(active.sourceStartMin, zone.minute, snapStepMin)
           }
         }
       } else {
@@ -333,8 +339,13 @@ export function useScheduleDrag({
             date,
             startMin:
               active.kind === 'move'
-                ? getMoveStartMin(zone.minute, active.grabOffsetMin, active.durationMin)
-                : getMoveStartMin(zone.minute, 0, active.durationMin),
+                ? getMoveStartMin(
+                    zone.minute,
+                    active.grabOffsetMin,
+                    active.durationMin,
+                    snapStepMin
+                  )
+                : getMoveStartMin(zone.minute, 0, active.durationMin, snapStepMin),
             durationMin: active.durationMin
           }
         }
@@ -384,7 +395,7 @@ export function useScheduleDrag({
         }
       }
     }
-  }, [])
+  }, [snapStepMin])
 
   const beginGesture = useCallback(
     (
@@ -397,7 +408,7 @@ export function useScheduleDrag({
 
       const durationMin =
         kind === 'create' && task !== null
-          ? getTaskDragDuration(task.remainingMin)
+          ? getTaskDragDuration(task.remainingMin, defaultTaskDurationMin)
           : (entry?.block.durationMin ?? 0)
 
       if (durationMin <= 0) return
@@ -551,7 +562,7 @@ export function useScheduleDrag({
             .map((dayEntry) => dayEntry.block)
             .filter((block) => block.id !== excludedBlockId)
 
-          freeSlotsByDate.set(date, getFreeSlots(blocks, { minimumDurationMin: SNAP_MINUTES }))
+          freeSlotsByDate.set(date, getFreeSlots(blocks, { minimumDurationMin: snapStepMin }))
         }
 
         const blockElement =
@@ -717,8 +728,10 @@ export function useScheduleDrag({
     [
       cancelDrag,
       daysRef,
+      defaultTaskDurationMin,
       removeListeners,
       scrollRef,
+      snapStepMin,
       stopLoop,
       suppressNextClick,
       teardown,

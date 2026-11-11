@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { addDays, getWeekStart, todayLocalDate } from '../core/time'
 import type { LocalDate } from '../core/types'
 
-export type AppScreen = 'week' | 'categories' | 'templates'
+export type AppScreen = 'week' | 'categories' | 'templates' | 'settings'
 
 /** Échelle de temps affichée : une journée seule ou la semaine entière. */
 export type CalendarViewMode = 'day' | 'week'
@@ -17,8 +17,10 @@ export interface CreationRequest {
 
 interface UiState {
   screen: AppScreen
-  /** Lundi de la semaine affichée. */
+  /** Premier jour de la semaine affichée. */
   weekStart: LocalDate
+  /** Index du premier jour de la semaine : 0 = lundi, 6 = dimanche. */
+  weekStartsOn: number
   /** Jour affiché en vue Jour. */
   selectedDate: LocalDate
   viewMode: CalendarViewMode
@@ -34,8 +36,10 @@ interface UiState {
   /** Affiche la date demandée dans la vue courante. */
   goToDate: (date: LocalDate) => void
   setView: (viewMode: CalendarViewMode) => void
+  setWeekStartsOn: (weekStartsOn: number) => void
   openCategories: () => void
   openTemplates: () => void
+  openSettings: () => void
   openPalette: () => void
   closePalette: () => void
   togglePalette: () => void
@@ -51,6 +55,7 @@ interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   screen: 'week',
   weekStart: getWeekStart(todayLocalDate()),
+  weekStartsOn: 0,
   selectedDate: todayLocalDate(),
   viewMode: 'week',
   paletteOpen: false,
@@ -63,7 +68,7 @@ export const useUiStore = create<UiState>((set) => ({
       }
 
       const selectedDate = addDays(state.selectedDate, -1)
-      return { selectedDate, weekStart: getWeekStart(selectedDate) }
+      return { selectedDate, weekStart: getWeekStart(selectedDate, state.weekStartsOn) }
     }),
   nextPeriod: () =>
     set((state) => {
@@ -72,12 +77,15 @@ export const useUiStore = create<UiState>((set) => ({
       }
 
       const selectedDate = addDays(state.selectedDate, 1)
-      return { selectedDate, weekStart: getWeekStart(selectedDate) }
+      return { selectedDate, weekStart: getWeekStart(selectedDate, state.weekStartsOn) }
     }),
   goToToday: () =>
-    set({
-      weekStart: getWeekStart(todayLocalDate()),
-      selectedDate: todayLocalDate()
+    set((state) => {
+      const today = todayLocalDate()
+      return {
+        weekStart: getWeekStart(today, state.weekStartsOn),
+        selectedDate: today
+      }
     }),
   showCalendar: (date) => {
     if (date === undefined) {
@@ -85,38 +93,52 @@ export const useUiStore = create<UiState>((set) => ({
       return
     }
 
-    set({
+    set((state) => ({
       screen: 'week',
-      weekStart: getWeekStart(date),
+      weekStart: getWeekStart(date, state.weekStartsOn),
       selectedDate: date
-    })
+    }))
   },
   goToDate: (date) =>
-    set({
+    set((state) => ({
       screen: 'week',
-      weekStart: getWeekStart(date),
+      weekStart: getWeekStart(date, state.weekStartsOn),
       selectedDate: date
-    }),
+    })),
   setView: (viewMode) =>
     set((state) => {
       if (viewMode === state.viewMode) return {}
 
       if (viewMode === 'week') {
-        return { viewMode, weekStart: getWeekStart(state.selectedDate) }
+        return { viewMode, weekStart: getWeekStart(state.selectedDate, state.weekStartsOn) }
       }
 
       const today = todayLocalDate()
-      const selectedInWeek = getWeekStart(state.selectedDate) === state.weekStart
+      const selectedInWeek =
+        getWeekStart(state.selectedDate, state.weekStartsOn) === state.weekStart
       const selectedDate = selectedInWeek
         ? state.selectedDate
-        : getWeekStart(today) === state.weekStart
+        : getWeekStart(today, state.weekStartsOn) === state.weekStart
           ? today
           : state.weekStart
 
       return { viewMode, selectedDate }
     }),
+  setWeekStartsOn: (weekStartsOn) =>
+    set((state) => {
+      const selectedInDisplayedWeek =
+        getWeekStart(state.selectedDate, state.weekStartsOn) === state.weekStart
+      const reference =
+        state.viewMode === 'day' || selectedInDisplayedWeek ? state.selectedDate : state.weekStart
+
+      return {
+        weekStartsOn,
+        weekStart: getWeekStart(reference, weekStartsOn)
+      }
+    }),
   openCategories: () => set({ screen: 'categories', paletteOpen: false }),
   openTemplates: () => set({ screen: 'templates', paletteOpen: false }),
+  openSettings: () => set({ screen: 'settings', paletteOpen: false }),
   openPalette: () => set({ paletteOpen: true }),
   closePalette: () => set({ paletteOpen: false }),
   togglePalette: () => set((state) => ({ paletteOpen: !state.paletteOpen })),

@@ -1,6 +1,14 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { BACKUP_FORMAT, backupFileName, createBackup, serializeBackup } from '../src/db/backup'
+import {
+  BACKUP_FORMAT,
+  BackupFormatError,
+  backupFileName,
+  createBackup,
+  importBackup,
+  parseBackup,
+  serializeBackup
+} from '../src/db/backup'
 import { DATABASE_VERSION, PlannerDatabase } from '../src/db/database'
 import { createRepositories, type Repositories } from '../src/db/repositories'
 
@@ -74,5 +82,78 @@ describe('sauvegarde JSON', () => {
 
     expect(JSON.parse(serialized)).toEqual(backup)
     expect(backupFileName(new Date(2026, 10, 11, 20, 0))).toBe('planner-sauvegarde-2026-11-11.json')
+  })
+
+  it('relit une sauvegarde exportée sans perte', async () => {
+    await repositories.categories.create({ name: 'Maths', color: '#3E63DD', groupId: null })
+    await repositories.settings.create({ key: 'theme', value: 'light' })
+    const backup = await createBackup(repositories, new Date('2026-11-11T20:00:00.000Z'))
+
+    expect(parseBackup(serializeBackup(backup))).toEqual(backup)
+  })
+
+  it('refuse un JSON invalide, un autre format et une version inconnue', () => {
+    expect(() => parseBackup('{')).toThrow(BackupFormatError)
+    expect(() => parseBackup('{"format":"autre"}')).toThrow(/pas une sauvegarde Planner/)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          format: BACKUP_FORMAT,
+          version: DATABASE_VERSION + 1,
+          exportedAt: '2026-11-11T20:00:00.000Z',
+          data: {}
+        })
+      )
+    ).toThrow(/Version de sauvegarde non prise en charge/)
+  })
+
+  it('refuse une table absente ou une entrée invalide', async () => {
+    const backup = await createBackup(repositories)
+    const serialized = JSON.parse(serializeBackup(backup)) as {
+      data: { blocks: unknown[]; items: unknown[] }
+    }
+
+    serialized.data.blocks.push({ id: 'bloc-invalide' })
+    expect(() => parseBackup(JSON.stringify(serialized))).toThrow(/Entrée invalide/)
+
+    serialized.data.blocks.pop()
+    delete (serialized.data as Partial<typeof serialized.data>).items
+    expect(() => parseBackup(JSON.stringify(serialized))).toThrow(/absente ou invalide/)
+  })
+
+  it('remplace toutes les tables lors d’un import', async () => {
+    const originalGroup = await repositories.categoryGroups.create({ name: 'Matières', order: 0 })
+    const originalCategory = await repositories.categories.create({
+      name: 'Maths',
+      color: '#3E63DD',
+      groupId: originalGroup.id
+    })
+    const originalItem = await repositories.items.create({
+      kind: 'task',
+      title: 'Réviser',
+      categoryId: originalCategory.id
+    })
+    await repositories.blocks.create({
+      itemId: originalItem.id,
+      date: '2026-11-12',
+      startMin: 540,
+      durationMin: 60
+    })
+
+    const backup = parseBackup(serializeBackup(await createBackup(repositories)))
+
+    await repositories.categories.create({ name: 'À supprimer', color: '#E5484D' })
+    await repositories.items.create({ kind: 'task', title: 'Tâche en trop' })
+
+    await importBackup(repositories, backup)
+
+    expect(
+      (await repositories.categories.list({ includeDeleted: true })).map((c) => c.name)
+    ).toEqual(['Maths'])
+    expect((await repositories.items.list({ includeDeleted: true })).map((i) => i.title)).toEqual([
+      'Réviser'
+    ])
+    expect(await repositories.blocks.list({ includeDeleted: true })).toHaveLength(1)
+    expect(repositories.history.size).toBe(0)
   })
 })

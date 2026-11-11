@@ -7,6 +7,7 @@ beforeEach(() => {
     screen: 'week',
     viewMode: 'week',
     weekStart: '2026-11-09',
+    weekStartsOn: 0,
     selectedDate: '2026-11-12',
     paletteOpen: false,
     creationRequest: null,
@@ -68,6 +69,32 @@ describe('navigation du calendrier', () => {
     const state = useUiStore.getState()
     expect(state.selectedDate).toBe(todayLocalDate())
     expect(state.weekStart).toBe(getWeekStart(todayLocalDate()))
+  })
+
+  it('recalcule la semaine affichée quand le premier jour change', () => {
+    useUiStore.setState({
+      screen: 'settings',
+      viewMode: 'week',
+      weekStart: '2026-11-09',
+      selectedDate: '2026-11-12'
+    })
+
+    useUiStore.getState().setWeekStartsOn(6)
+
+    expect(useUiStore.getState().weekStartsOn).toBe(6)
+    expect(useUiStore.getState().weekStart).toBe('2026-11-08')
+  })
+
+  it('suit le premier jour choisi pour les semaines suivantes', () => {
+    useUiStore.setState({
+      weekStartsOn: 6,
+      weekStart: '2026-11-08',
+      selectedDate: '2026-11-12'
+    })
+
+    useUiStore.getState().nextPeriod()
+
+    expect(useUiStore.getState().weekStart).toBe('2026-11-15')
   })
 })
 

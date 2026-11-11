@@ -39,6 +39,12 @@ describe('bornage et accrochage des blocs', () => {
     expect(getMoveStartMin(900, 30, 60)).toBe(870)
     expect(getMoveStartMin(1430, 0, 60)).toBe(1380)
   })
+
+  it('respecte un pas de glisser personnalisé', () => {
+    expect(clampBlockStart(847, 60, 10)).toBe(850)
+    expect(clampBlockStart(853, 60, 30)).toBe(840)
+    expect(getMoveStartMin(902, 0, 60, 30)).toBe(900)
+  })
 })
 
 describe('redimensionnement par le bas', () => {
@@ -55,6 +61,12 @@ describe('redimensionnement par le bas', () => {
   it('ne dépasse jamais minuit', () => {
     expect(getResizeDurationMin(1380, 1440)).toBe(60)
     expect(getResizeDurationMin(1430, 1440)).toBe(10)
+  })
+
+  it('suit le pas de glisser personnalisé', () => {
+    expect(getResizeDurationMin(840, 932, 30)).toBe(90)
+    expect(getResizeDurationMin(840, 950, 30)).toBe(120)
+    expect(getResizeDurationMin(840, 845, 30)).toBe(30)
   })
 })
 

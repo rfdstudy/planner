@@ -5,6 +5,7 @@ import styles from './AppMenu.module.css'
 interface AppMenuProps {
   onOpenCategories: () => void
   onOpenTemplates: () => void
+  onOpenSettings: () => void
   /** Commande de développement uniquement. */
   onLoadDemo?: () => void
   demoLoading?: boolean
@@ -13,6 +14,7 @@ interface AppMenuProps {
 export function AppMenu({
   onOpenCategories,
   onOpenTemplates,
+  onOpenSettings,
   onLoadDemo,
   demoLoading = false
 }: AppMenuProps): React.JSX.Element {
@@ -46,6 +48,34 @@ export function AppMenu({
     }
   }, [open])
 
+  function handleMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    const items = Array.from(
+      wrapperRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ??
+        []
+    )
+
+    if (items.length === 0) return
+
+    const currentIndex = items.findIndex((item) => item === document.activeElement)
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowDown') {
+      nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
+    } else if (event.key === 'ArrowUp') {
+      nextIndex =
+        currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = items.length - 1
+    }
+
+    if (nextIndex === null) return
+
+    event.preventDefault()
+    items[nextIndex]?.focus()
+  }
+
   return (
     <div className={styles.wrapper} ref={wrapperRef}>
       <button
@@ -61,7 +91,12 @@ export function AppMenu({
       </button>
 
       {open && (
-        <div className={styles.panel} role="menu" aria-label="Menu principal">
+        <div
+          className={styles.panel}
+          role="menu"
+          aria-label="Menu principal"
+          onKeyDown={handleMenuKeyDown}
+        >
           <button
             ref={itemRef}
             type="button"
@@ -85,6 +120,18 @@ export function AppMenu({
             }}
           >
             Catégories
+          </button>
+
+          <button
+            type="button"
+            className={styles.item}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenSettings()
+            }}
+          >
+            Réglages
           </button>
 
           {import.meta.env.DEV && onLoadDemo !== undefined && (

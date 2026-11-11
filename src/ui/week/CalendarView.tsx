@@ -34,6 +34,7 @@ import type {
 } from '../../core/types'
 import { loadDemoWeek } from '../../db/demoWeek'
 import { repositories } from '../../db/repositories'
+import { usePreferencesStore } from '../../state/preferences'
 import { useUiStore, type CalendarViewMode, type CreationKind } from '../../state/ui'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { ElementEditor } from './ElementEditor'
@@ -102,10 +103,12 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const setView = useUiStore((state) => state.setView)
   const openCategories = useUiStore((state) => state.openCategories)
   const openTemplates = useUiStore((state) => state.openTemplates)
+  const openSettings = useUiStore((state) => state.openSettings)
   const openPalette = useUiStore((state) => state.openPalette)
   const paletteOpen = useUiStore((state) => state.paletteOpen)
   const creationRequest = useUiStore((state) => state.creationRequest)
   const consumeCreation = useUiStore((state) => state.consumeCreation)
+  const preferences = usePreferencesStore((state) => state.preferences)
 
   const [snapshot, setSnapshot] = useState<ScheduleData | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -118,8 +121,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const days = useMemo(
-    () => (mode === 'day' ? [selectedDate] : getWeekDays(weekStart)),
-    [mode, selectedDate, weekStart]
+    () => (mode === 'day' ? [selectedDate] : getWeekDays(weekStart, preferences.weekStartsOn)),
+    [mode, preferences.weekStartsOn, selectedDate, weekStart]
   )
   const rangeStart = days[0]
   const rangeEnd = days[days.length - 1]
@@ -140,6 +143,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     daysRef,
     days,
     daysData,
+    snapStepMin: preferences.dragStepMin,
+    defaultTaskDurationMin: preferences.defaultTaskDurationMin,
     onError: setActionError,
     onTemplateMove: (entry, target) => {
       setActionError(null)
@@ -225,17 +230,26 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       const date = days.includes(referenceDate) ? referenceDate : days[0]
       const referenceMinutes = reference.getHours() * 60 + reference.getMinutes()
       const startMin =
-        date === referenceDate ? snapNewBlockStart(referenceMinutes) : OTHER_DAY_START_MIN
+        date === referenceDate
+          ? snapNewBlockStart(
+              referenceMinutes,
+              preferences.defaultTaskDurationMin,
+              preferences.dragStepMin
+            )
+          : OTHER_DAY_START_MIN
 
       setActionError(null)
       setScopeRequest(null)
       setEditor({
         mode: 'create',
         anchor: { x: Math.max(12, window.innerWidth / 2 - 174), y: 96 },
-        draft: createNewElementDraft({ date, startMin, kind })
+        draft: createNewElementDraft(
+          { date, startMin, kind },
+          { taskDurationMin: preferences.defaultTaskDurationMin }
+        )
       })
     },
-    [days]
+    [days, preferences.defaultTaskDurationMin, preferences.dragStepMin]
   )
 
   const handleToday = useCallback((): void => {
@@ -353,13 +367,20 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     if (event.button !== 0 || drag.session !== null) return
 
     const rect = event.currentTarget.getBoundingClientRect()
-    const startMin = snapNewBlockStart(event.clientY - rect.top)
+    const startMin = snapNewBlockStart(
+      event.clientY - rect.top,
+      preferences.defaultTaskDurationMin,
+      preferences.dragStepMin
+    )
 
     setActionError(null)
     setEditor({
       mode: 'create',
       anchor: { x: event.clientX, y: event.clientY },
-      draft: createNewElementDraft({ date, startMin })
+      draft: createNewElementDraft(
+        { date, startMin },
+        { taskDurationMin: preferences.defaultTaskDurationMin }
+      )
     })
   }
 
@@ -612,7 +633,11 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     <div className={styles.screen}>
       <CalendarTopBar
         viewMode={mode}
-        title={mode === 'day' ? formatDayLabel(days[0]) : formatWeekLabel(weekStart)}
+        title={
+          mode === 'day'
+            ? formatDayLabel(days[0])
+            : formatWeekLabel(weekStart, preferences.weekStartsOn)
+        }
         onPrevious={previousPeriod}
         onNext={nextPeriod}
         onToday={handleToday}
@@ -620,6 +645,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         onOpenPalette={openPalette}
         onOpenCategories={openCategories}
         onOpenTemplates={openTemplates}
+        onOpenSettings={openSettings}
         onLoadDemo={import.meta.env.DEV ? () => void handleLoadDemo() : undefined}
         demoLoading={demoLoading}
       />
@@ -809,6 +835,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
           anchor={editor.anchor}
           categories={data.categories}
           categoryGroups={data.categoryGroups}
+          snapStepMin={preferences.dragStepMin}
           recurring={editor.mode === 'edit' && editor.entry.template !== null}
           onClose={() => setEditor(null)}
           onSubmit={handleEditorSubmit}

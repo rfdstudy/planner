@@ -481,7 +481,7 @@ export function CategoriesScreen(): React.JSX.Element {
                   </div>
                 )}
 
-                {section.categories.length === 0 && (
+                {section.categories.length === 0 && activeCategories.length > 0 && (
                   <p className={styles.emptyGroup}>Aucune catégorie dans ce groupe.</p>
                 )}
 
@@ -540,9 +540,10 @@ export function CategoriesScreen(): React.JSX.Element {
           })}
         </div>
 
-        {groups.length === 0 && ungroupedCategories.length === 0 && (
+        {activeCategories.length === 0 && archivedCategories.length === 0 && (
           <p className={styles.emptyState}>
-            Aucune catégorie pour l’instant. Créez une catégorie ou un groupe pour commencer.
+            Aucune catégorie pour l’instant. Créez une catégorie pour ranger vos tâches par matière
+            ou par projet.
           </p>
         )}
 

@@ -10,5 +10,23 @@ export const electronPlatform: Platform = {
     }
 
     return saveTextFile(request)
+  },
+  openTextFile: async (request) => {
+    const openTextFile = window.planner?.openTextFile
+
+    if (openTextFile === undefined) {
+      throw new Error('L’ouverture de fichier n’est pas disponible.')
+    }
+
+    return openTextFile(request)
+  },
+  saveAutoBackup: async (request) => {
+    const saveAutoBackup = window.planner?.saveAutoBackup
+
+    if (saveAutoBackup === undefined) {
+      return { saved: false }
+    }
+
+    return saveAutoBackup(request)
   }
 }

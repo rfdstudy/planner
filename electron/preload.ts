@@ -1,12 +1,26 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SaveTextFileRequest, SaveTextFileResult } from '../src/platform/types'
+import {
+  AUTO_BACKUP_CHANNEL,
+  OPEN_TEXT_FILE_CHANNEL,
+  SAVE_TEXT_FILE_CHANNEL
+} from '../src/platform/channels'
+import type {
+  AutoBackupRequest,
+  AutoBackupResult,
+  OpenTextFileRequest,
+  OpenTextFileResult,
+  SaveTextFileRequest,
+  SaveTextFileResult
+} from '../src/platform/types'
 
-export const SAVE_TEXT_FILE_CHANNEL = 'planner:save-text-file'
-
-// Seul point d'entrée natif exposé au renderer : l'enregistrement d'un fichier
-// texte. Aucun accès direct au système de fichiers n'est donné à l'interface.
+// Seuls points d'entrée natifs exposés au renderer. Aucun accès direct au
+// système de fichiers n'est donné à l'interface.
 contextBridge.exposeInMainWorld('planner', {
   isElectron: true,
   saveTextFile: (request: SaveTextFileRequest): Promise<SaveTextFileResult> =>
-    ipcRenderer.invoke(SAVE_TEXT_FILE_CHANNEL, request)
+    ipcRenderer.invoke(SAVE_TEXT_FILE_CHANNEL, request),
+  openTextFile: (request: OpenTextFileRequest): Promise<OpenTextFileResult | null> =>
+    ipcRenderer.invoke(OPEN_TEXT_FILE_CHANNEL, request),
+  saveAutoBackup: (request: AutoBackupRequest): Promise<AutoBackupResult> =>
+    ipcRenderer.invoke(AUTO_BACKUP_CHANNEL, request)
 })

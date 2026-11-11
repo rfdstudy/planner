@@ -3,13 +3,14 @@ import { repositories } from '../db/repositories'
 import { platform } from '../platform'
 
 /** Prépare la sauvegarde complète puis la remet à la plateforme d'export. */
-export async function exportBackup(): Promise<void> {
+export async function exportBackup(): Promise<boolean> {
   const backup = await createBackup(repositories)
-
-  await platform.saveTextFile({
+  const result = await platform.saveTextFile({
     fileName: backupFileName(),
     content: serializeBackup(backup),
     mimeType: 'application/json',
     filters: [{ name: 'Sauvegarde Planner', extensions: ['json'] }]
   })
+
+  return result.saved
 }

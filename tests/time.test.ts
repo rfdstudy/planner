@@ -91,6 +91,34 @@ describe('semaine du lundi au dimanche', () => {
     expect(getWeekdayIndex('2026-11-12')).toBe(3)
     expect(getWeekdayIndex('2026-11-15')).toBe(6)
   })
+
+  it('démarre la semaine le dimanche quand le réglage le demande', () => {
+    expect(getWeekStart('2026-11-12', 6)).toBe('2026-11-08')
+    expect(getWeekEnd('2026-11-12', 6)).toBe('2026-11-14')
+    expect(getWeekRange('2026-11-12', 6)).toEqual({
+      start: '2026-11-08',
+      end: '2026-11-14'
+    })
+    expect(getWeekDays('2026-11-12', 6)).toEqual([
+      '2026-11-08',
+      '2026-11-09',
+      '2026-11-10',
+      '2026-11-11',
+      '2026-11-12',
+      '2026-11-13',
+      '2026-11-14'
+    ])
+  })
+
+  it('accepte n’importe quel premier jour de la semaine', () => {
+    expect(getWeekStart('2026-11-12', 3)).toBe('2026-11-12')
+    expect(getWeekEnd('2026-11-12', 3)).toBe('2026-11-18')
+  })
+
+  it('refuse un premier jour hors de la semaine', () => {
+    expect(() => getWeekStart('2026-11-12', 7)).toThrow(RangeError)
+    expect(() => getWeekStart('2026-11-12', -1)).toThrow(RangeError)
+  })
 })
 
 describe('libellés de calendrier', () => {
@@ -104,6 +132,10 @@ describe('libellés de calendrier', () => {
 
   it('affiche les deux années au changement d’année', () => {
     expect(formatWeekLabel('2026-01-01')).toBe('29 déc. 2025 – 4 janv. 2026')
+  })
+
+  it('suit le premier jour choisi pour le libellé', () => {
+    expect(formatWeekLabel('2026-11-12', 6)).toBe('8 – 14 novembre 2026')
   })
 
   it('abrège les jours sans point final', () => {

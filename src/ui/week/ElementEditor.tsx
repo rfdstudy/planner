@@ -28,6 +28,8 @@ interface ElementEditorProps {
   anchor: FloatingAnchor
   categories: readonly Category[]
   categoryGroups: readonly CategoryGroup[]
+  /** Pas d'accrochage du champ horaire, en minutes. */
+  snapStepMin?: number
   /** Bloc calculé depuis la semaine type : type limité et pas de notes. */
   recurring?: boolean
   onClose: () => void
@@ -55,6 +57,7 @@ export function ElementEditor({
   anchor,
   categories,
   categoryGroups,
+  snapStepMin = 15,
   recurring = false,
   onClose,
   onSubmit,
@@ -442,7 +445,7 @@ export function ElementEditor({
                   <input
                     className={styles.control}
                     type="time"
-                    step={900}
+                    step={snapStepMin * 60}
                     value={draft.noTime ? '' : draft.time}
                     aria-label="Heure"
                     disabled={busy || draft.noTime}

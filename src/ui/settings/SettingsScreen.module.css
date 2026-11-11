@@ -1,0 +1,209 @@
+.screen {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-subtle);
+}
+
+.container {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-6) var(--sp-8);
+}
+
+.pageHeader {
+  margin-bottom: var(--sp-6);
+}
+
+.title {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin-top: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.banner,
+.notice {
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--radius-ctl);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.notice {
+  color: var(--text-2);
+}
+
+.card {
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+}
+
+.sectionTitle {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.sectionLead {
+  margin-top: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.settingRow:first-of-type {
+  margin-top: var(--sp-3);
+}
+
+.settingLabel {
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  color: var(--text);
+  font-size: var(--fs-md);
+}
+
+.hint {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.select {
+  flex: 0 0 auto;
+  min-width: 150px;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-ctl);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition:
+    background-color var(--t-fast),
+    opacity var(--t-fast);
+}
+
+.primaryButton {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.secondaryButton {
+  background: var(--bg-subtle);
+  color: var(--text-2);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ghostButton {
+  color: var(--text-2);
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.ghostButton:disabled,
+.select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.autoBackup {
+  margin-top: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.confirmPanel {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+}
+
+.confirmTitle {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.confirmText {
+  margin-top: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.confirmWarning {
+  margin-top: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryButton,
+  .secondaryButton,
+  .ghostButton {
+    transition: none;
+  }
+}

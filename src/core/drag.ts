@@ -91,15 +91,19 @@ export function clampBlockDuration(durationMin: number): number {
 }
 
 /**
- * Accroche le début d'un bloc sur le pas de 15 minutes et le maintient dans la
+ * Accroche le début d'un bloc sur le pas demandé et le maintient dans la
  * journée, en tenant compte de sa durée.
  */
-export function clampBlockStart(startMin: number, durationMin: number): number {
+export function clampBlockStart(
+  startMin: number,
+  durationMin: number,
+  step: number = SNAP_MINUTES
+): number {
   const duration = clampBlockDuration(durationMin)
   const rounded = Number.isFinite(startMin) ? Math.round(startMin) : 0
   const latestStart = Math.max(0, MINUTES_PER_DAY - duration)
 
-  return clampMinutes(snapMinutes(rounded), 0, latestStart)
+  return clampMinutes(snapMinutes(rounded, step), 0, latestStart)
 }
 
 /**
@@ -118,11 +122,12 @@ export function getGrabOffsetMin(
   return clampMinutes(Math.round(pointer - start), 0, Math.max(0, duration - 1))
 }
 
-/** Début d'un bloc déplacé, accroché et borné à la journée. */
+/** Début d'un bloc déplacé, accroché sur le pas demandé et borné à la journée. */
 export function getMoveStartMin(
   pointerMin: number,
   grabOffsetMin: number,
-  durationMin: number
+  durationMin: number,
+  step: number = SNAP_MINUTES
 ): number {
   const duration = clampBlockDuration(durationMin)
   const pointer = Number.isFinite(pointerMin) ? pointerMin : 0
@@ -131,23 +136,28 @@ export function getMoveStartMin(
     : 0
   const latestStart = Math.max(0, MINUTES_PER_DAY - duration)
 
-  return clampMinutes(snapMinutes(Math.round(pointer - offset)), 0, latestStart)
+  return clampMinutes(snapMinutes(Math.round(pointer - offset), step), 0, latestStart)
 }
 
 /**
- * Durée d'un bloc redimensionné par le bas : accrochée sur 15 minutes, au moins
- * 15 minutes (ou moins si le bloc finit déjà la journée), sans dépasser minuit.
+ * Durée d'un bloc redimensionné par le bas : accrochée sur le pas demandé, au
+ * moins ce pas (ou moins si le bloc finit déjà la journée), sans dépasser
+ * minuit.
  */
-export function getResizeDurationMin(blockStartMin: number, pointerMin: number): number {
+export function getResizeDurationMin(
+  blockStartMin: number,
+  pointerMin: number,
+  step: number = SNAP_MINUTES
+): number {
   const start = clampMinutes(
     Number.isFinite(blockStartMin) ? Math.round(blockStartMin) : 0,
     0,
     MINUTES_PER_DAY - 1
   )
   const maxDuration = MINUTES_PER_DAY - start
-  const minDuration = Math.min(MIN_RESIZE_DURATION_MIN, maxDuration)
+  const minDuration = Math.min(step, maxDuration)
   const pointer = Number.isFinite(pointerMin) ? pointerMin : start + minDuration
-  const snapped = snapMinutes(Math.round(pointer - start))
+  const snapped = snapMinutes(Math.round(pointer - start), step)
 
   return clampMinutes(Math.max(minDuration, snapped), minDuration, maxDuration)
 }

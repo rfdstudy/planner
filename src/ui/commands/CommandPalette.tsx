@@ -3,6 +3,7 @@ import { filterCommands } from '../../core/commands'
 import { getWeekDays, isLocalDate, todayLocalDate } from '../../core/time'
 import { useUiStore } from '../../state/ui'
 import { exportBackup } from '../exportBackup'
+import { exportCalendarIcs } from '../exportCalendar'
 import styles from './CommandPalette.module.css'
 
 /** Date la plus utile à proposer : le jour affiché ou aujourd'hui dans la semaine. */
@@ -11,7 +12,7 @@ function displayedDate(): string {
 
   if (state.viewMode === 'day') return state.selectedDate
 
-  const days = getWeekDays(state.weekStart)
+  const days = getWeekDays(state.weekStart, state.weekStartsOn)
   const today = todayLocalDate()
 
   return days.includes(today) ? today : state.weekStart
@@ -45,6 +46,7 @@ function PaletteSession(): React.JSX.Element {
   const setView = useUiStore((state) => state.setView)
   const openCategories = useUiStore((state) => state.openCategories)
   const openTemplates = useUiStore((state) => state.openTemplates)
+  const openSettings = useUiStore((state) => state.openSettings)
   const requestCreation = useUiStore((state) => state.requestCreation)
 
   const [mode, setMode] = useState<PaletteMode>('commands')
@@ -116,6 +118,15 @@ function PaletteSession(): React.JSX.Element {
         }
       },
       {
+        id: 'open-settings',
+        label: 'Ouvrir Réglages',
+        keywords: ['préférences', 'paramètres', 'sauvegarde', 'import', 'export'],
+        run: () => {
+          openSettings()
+          closePalette()
+        }
+      },
+      {
         id: 'export-backup',
         label: 'Exporter la sauvegarde',
         hint: 'JSON',
@@ -133,9 +144,36 @@ function PaletteSession(): React.JSX.Element {
             setBusy(false)
           }
         }
+      },
+      {
+        id: 'export-calendar',
+        label: 'Exporter le calendrier',
+        hint: 'ICS',
+        keywords: ['export', 'calendrier', 'icalendar', 'agenda'],
+        run: async () => {
+          setBusy(true)
+          setError(null)
+
+          try {
+            await exportCalendarIcs()
+            closePalette()
+          } catch {
+            setError('Le calendrier n’a pas pu être exporté.')
+          } finally {
+            setBusy(false)
+          }
+        }
       }
     ]
-  }, [closePalette, openCategories, openTemplates, requestCreation, setView, showCalendar])
+  }, [
+    closePalette,
+    openCategories,
+    openSettings,
+    openTemplates,
+    requestCreation,
+    setView,
+    showCalendar
+  ])
 
   const filteredCommands = useMemo(() => filterCommands(commands, query), [commands, query])
 

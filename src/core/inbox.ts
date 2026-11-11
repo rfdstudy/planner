@@ -40,9 +40,13 @@ export function sumPlannedMinutes(blocks: readonly DurableBlock[]): number {
  * Temps restant à planifier : durée estimée moins la somme des blocs. Sans
  * estimation, la tâche affiche la durée par défaut tant qu'elle n'a aucun bloc.
  */
-export function getRemainingTaskMinutes(item: Item, blocks: readonly DurableBlock[]): number {
+export function getRemainingTaskMinutes(
+  item: Item,
+  blocks: readonly DurableBlock[],
+  defaultTaskDurationMin: number = DEFAULT_TASK_DURATION_MIN
+): number {
   if (item.estimateMin === null) {
-    return blocks.length === 0 ? DEFAULT_TASK_DURATION_MIN : 0
+    return blocks.length === 0 ? defaultTaskDurationMin : 0
   }
 
   return Math.max(0, item.estimateMin - sumPlannedMinutes(blocks))
@@ -70,7 +74,8 @@ export function isTaskInInbox(item: Item, blocks: readonly DurableBlock[]): bool
 export function listInboxTasks(
   items: readonly Item[],
   blocks: readonly Block[],
-  categories: readonly Category[]
+  categories: readonly Category[],
+  defaultTaskDurationMin: number = DEFAULT_TASK_DURATION_MIN
 ): InboxTask[] {
   const blocksByItem = new Map<string, Block[]>()
 
@@ -92,7 +97,11 @@ export function listInboxTasks(
     .map((item) => ({
       item,
       category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
-      remainingMin: getRemainingTaskMinutes(item, blocksByItem.get(item.id) ?? [])
+      remainingMin: getRemainingTaskMinutes(
+        item,
+        blocksByItem.get(item.id) ?? [],
+        defaultTaskDurationMin
+      )
     }))
 }
 

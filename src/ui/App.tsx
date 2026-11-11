@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
+import { DEFAULT_PREFERENCES } from '../core/preferences'
+import { loadPreferences } from '../db/preferences'
 import { repositories } from '../db/repositories'
 import { prepareApplication, type ApplicationStartup } from '../db/startup'
+import { usePreferencesStore } from '../state/preferences'
 import { useUiStore } from '../state/ui'
+import { startAutoBackup } from './autoBackup'
 import { CategoriesScreen } from './categories/CategoriesScreen'
 import { CommandPalette } from './commands/CommandPalette'
 import { Icon } from './components/Icon'
 import { WelcomeScreen } from './onboarding/WelcomeScreen'
+import { SettingsScreen } from './settings/SettingsScreen'
 import { TemplatesScreen } from './templates/TemplatesScreen'
 import { DayView } from './week/DayView'
 import { WeekView } from './week/WeekView'
@@ -19,13 +24,21 @@ function App(): React.JSX.Element {
   const viewMode = useUiStore((state) => state.viewMode)
   const showCalendar = useUiStore((state) => state.showCalendar)
   const togglePalette = useUiStore((state) => state.togglePalette)
+  const openSettings = useUiStore((state) => state.openSettings)
 
   useEffect(() => {
     let cancelled = false
 
-    prepareApplication(repositories)
-      .then((state) => {
-        if (!cancelled) setStartup(state)
+    Promise.all([
+      prepareApplication(repositories),
+      loadPreferences(repositories).catch(() => DEFAULT_PREFERENCES)
+    ])
+      .then(([state, preferences]) => {
+        if (cancelled) return
+
+        usePreferencesStore.getState().setPreferences(preferences)
+        useUiStore.getState().setWeekStartsOn(preferences.weekStartsOn)
+        setStartup(state)
       })
       .catch(() => {
         if (!cancelled) setStartupError(true)
@@ -37,9 +50,22 @@ function App(): React.JSX.Element {
   }, [attempt])
 
   useEffect(() => {
+    if (startup === null || startup.firstLaunch) return
+
+    return startAutoBackup()
+  }, [startup])
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (startup === null || startup.firstLaunch) return
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+
+      if (event.key === ',') {
+        event.preventDefault()
+        openSettings()
+        return
+      }
+
       if (event.key.toLowerCase() !== 'k') return
 
       event.preventDefault()
@@ -48,7 +74,7 @@ function App(): React.JSX.Element {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [startup, togglePalette])
+  }, [openSettings, startup, togglePalette])
 
   const retryStartup = (): void => {
     setStartup(null)
@@ -99,7 +125,13 @@ function App(): React.JSX.Element {
             <span className={styles.brand}>Planner</span>
           </header>
           <main className={styles.content}>
-            {screen === 'templates' ? <TemplatesScreen /> : <CategoriesScreen />}
+            {screen === 'templates' ? (
+              <TemplatesScreen />
+            ) : screen === 'settings' ? (
+              <SettingsScreen />
+            ) : (
+              <CategoriesScreen />
+            )}
           </main>
         </div>
       )}

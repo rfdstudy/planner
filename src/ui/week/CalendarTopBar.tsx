@@ -13,6 +13,7 @@ interface CalendarTopBarProps {
   onOpenPalette: () => void
   onOpenCategories: () => void
   onOpenTemplates: () => void
+  onOpenSettings: () => void
   onLoadDemo?: () => void
   demoLoading: boolean
 }
@@ -27,6 +28,7 @@ export function CalendarTopBar({
   onOpenPalette,
   onOpenCategories,
   onOpenTemplates,
+  onOpenSettings,
   onLoadDemo,
   demoLoading
 }: CalendarTopBarProps): React.JSX.Element {
@@ -113,6 +115,7 @@ export function CalendarTopBar({
         <AppMenu
           onOpenCategories={onOpenCategories}
           onOpenTemplates={onOpenTemplates}
+          onOpenSettings={onOpenSettings}
           onLoadDemo={onLoadDemo}
           demoLoading={demoLoading}
         />

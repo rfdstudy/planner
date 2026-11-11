@@ -16,6 +16,7 @@ import {
   todayLocalDate
 } from '../../core/time'
 import type { Category, CategoryGroup, TemplateKind } from '../../core/types'
+import { usePreferencesStore } from '../../state/preferences'
 import { categoryColorStyle } from '../categoryColorStyle'
 import styles from './TemplateForm.module.css'
 
@@ -71,7 +72,7 @@ interface CategorySection {
   categories: Category[]
 }
 
-function defaultInitialValues(): TemplateFormInitialValues {
+function defaultInitialValues(weekStartsOn: number): TemplateFormInitialValues {
   return {
     kind: 'fixed',
     title: '',
@@ -79,7 +80,7 @@ function defaultInitialValues(): TemplateFormInitialValues {
     days: [weekdayCodeFromDate(todayLocalDate())],
     startMin: 8 * 60,
     durationMin: 60,
-    validFrom: getWeekStart(todayLocalDate()),
+    validFrom: getWeekStart(todayLocalDate(), weekStartsOn),
     validUntil: null
   }
 }
@@ -92,7 +93,8 @@ export function TemplateForm({
   onSubmit,
   onCancel
 }: TemplateFormProps): React.JSX.Element {
-  const start = initial ?? defaultInitialValues()
+  const preferences = usePreferencesStore((state) => state.preferences)
+  const start = initial ?? defaultInitialValues(preferences.weekStartsOn)
   const [title, setTitle] = useState(start.title)
   const [kind, setKind] = useState<TemplateKind>(start.kind)
   const [categoryId, setCategoryId] = useState<string | null>(start.categoryId)
@@ -347,7 +349,7 @@ export function TemplateForm({
           <input
             className={styles.control}
             type="time"
-            step={900}
+            step={preferences.dragStepMin * 60}
             value={time}
             aria-label="Heure de début"
             disabled={saving}
@@ -366,7 +368,7 @@ export function TemplateForm({
               type="number"
               min={1}
               max={1440}
-              step={15}
+              step={preferences.dragStepMin}
               inputMode="numeric"
               value={durationMin}
               aria-label="Durée en minutes"

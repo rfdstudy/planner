@@ -1,16 +1,28 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { writeFile } from 'fs/promises'
-import { join } from 'path'
-import type { IpcMainInvokeEvent } from 'electron'
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'fs/promises'
+import { basename, join } from 'path'
+import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { autoBackupFileName, selectAutoBackupsToDelete } from '../src/core/backupRetention'
+import {
+  AUTO_BACKUP_CHANNEL,
+  OPEN_TEXT_FILE_CHANNEL,
+  SAVE_TEXT_FILE_CHANNEL
+} from '../src/platform/channels'
 import type {
+  AutoBackupRequest,
+  AutoBackupResult,
+  OpenTextFileRequest,
+  OpenTextFileResult,
   SaveTextFileFilter,
   SaveTextFileRequest,
   SaveTextFileResult
 } from '../src/platform/types'
 
 const APP_ID = 'com.planner.app'
-const SAVE_TEXT_FILE_CHANNEL = 'planner:save-text-file'
+const AUTO_BACKUP_DIRECTORY = 'sauvegardes'
+const MAX_IMPORT_BYTES = 50 * 1024 * 1024
+const MAX_BACKUP_BYTES = 50 * 1024 * 1024
 
 let mainWindow: BrowserWindow | null = null
 
@@ -34,6 +46,17 @@ function isSaveTextFileRequest(value: unknown): value is SaveTextFileRequest {
 
   const candidate = value as Partial<SaveTextFileRequest>
   return typeof candidate.fileName === 'string' && typeof candidate.content === 'string'
+}
+
+function isOpenTextFileRequest(value: unknown): value is OpenTextFileRequest {
+  return typeof value === 'object' && value !== null
+}
+
+function isAutoBackupRequest(value: unknown): value is AutoBackupRequest {
+  if (typeof value !== 'object' || value === null) return false
+
+  const candidate = value as Partial<AutoBackupRequest>
+  return typeof candidate.content === 'string'
 }
 
 async function handleSaveTextFile(
@@ -61,6 +84,67 @@ async function handleSaveTextFile(
 
   await writeFile(result.filePath, value.content, 'utf8')
   return { saved: true, filePath: result.filePath }
+}
+
+async function handleOpenTextFile(
+  event: IpcMainInvokeEvent,
+  value: unknown
+): Promise<OpenTextFileResult | null> {
+  if (!isOpenTextFileRequest(value)) {
+    throw new Error('Demande de lecture invalide.')
+  }
+
+  const owner = BrowserWindow.fromWebContents(event.sender)
+  const options: OpenDialogOptions = {
+    title: 'Importer une sauvegarde',
+    properties: ['openFile'],
+    filters: readFilters(value.filters)
+  }
+  const result =
+    owner === null
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(owner, options)
+
+  if (result.canceled || result.filePaths.length === 0) return null
+
+  const filePath = result.filePaths[0]
+  const fileStat = await stat(filePath)
+
+  if (fileStat.size > MAX_IMPORT_BYTES) {
+    throw new Error('Ce fichier de sauvegarde est trop volumineux.')
+  }
+
+  const content = await readFile(filePath, 'utf8')
+  return { content, fileName: basename(filePath), filePath }
+}
+
+async function handleAutoBackup(
+  _event: IpcMainInvokeEvent,
+  value: unknown
+): Promise<AutoBackupResult> {
+  if (!isAutoBackupRequest(value)) {
+    throw new Error('Demande de sauvegarde automatique invalide.')
+  }
+
+  if (Buffer.byteLength(value.content, 'utf8') > MAX_BACKUP_BYTES) {
+    throw new Error('La sauvegarde automatique est trop volumineuse.')
+  }
+
+  const directory = join(app.getPath('userData'), AUTO_BACKUP_DIRECTORY)
+  await mkdir(directory, { recursive: true })
+
+  const filePath = join(directory, autoBackupFileName())
+  await writeFile(filePath, value.content, 'utf8')
+
+  const entries = await readdir(directory, { withFileTypes: true })
+  const fileNames = entries.filter((entry) => entry.isFile()).map((entry) => entry.name)
+  const obsolete = selectAutoBackupsToDelete(fileNames)
+
+  await Promise.all(
+    obsolete.map((fileName) => unlink(join(directory, fileName)).catch(() => undefined))
+  )
+
+  return { saved: true, filePath }
 }
 
 function createWindow(): void {
@@ -126,6 +210,8 @@ if (!hasSingleInstanceLock) {
     electronApp.setAppUserModelId(APP_ID)
 
     ipcMain.handle(SAVE_TEXT_FILE_CHANNEL, handleSaveTextFile)
+    ipcMain.handle(OPEN_TEXT_FILE_CHANNEL, handleOpenTextFile)
+    ipcMain.handle(AUTO_BACKUP_CHANNEL, handleAutoBackup)
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)

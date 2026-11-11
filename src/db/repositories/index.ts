@@ -1,5 +1,6 @@
 import { db, type PlannerDatabase } from '../database'
 import { UndoHistory } from '../history'
+import { BackupRepository } from './backup'
 import { BlockRepository } from './blocks'
 import { CategoryGroupRepository } from './categoryGroups'
 import { CategoryRepository } from './categories'
@@ -22,6 +23,7 @@ export interface Repositories {
   overrides: OverrideRepository
   recurrence: RecurrenceRepository
   settings: SettingRepository
+  backup: BackupRepository
   history: UndoHistory
 }
 
@@ -41,12 +43,14 @@ export function createRepositories(
     overrides: new OverrideRepository(database.overrides),
     recurrence: new RecurrenceRepository(database),
     settings: new SettingRepository(database.settings),
+    backup: new BackupRepository(database),
     history
   }
 }
 
 export { RecordDeletedError, RecordNotFoundError } from './base'
 export type { EntityData, EntityPatch, ReadOptions } from './base'
+export type { BackupData } from './backup'
 
 /** Repositories de la base applicative. */
 export const repositories = createRepositories(db)

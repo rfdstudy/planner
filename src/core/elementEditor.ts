@@ -1,5 +1,6 @@
 import {
   MINUTES_PER_DAY,
+  SNAP_MINUTES,
   clampMinutes,
   isLocalDate,
   minutesToTime,
@@ -76,13 +77,19 @@ export interface NewElementDraftInput {
   kind?: ItemKind
 }
 
+export interface NewElementDraftOptions {
+  /** Durée proposée pour une nouvelle tâche, issue des réglages. */
+  taskDurationMin?: number
+}
+
 /**
- * Accroche le clic sur la grille au pas de 15 minutes. Le bloc reste
- * entièrement dans la journée : un clic tardif remonte le début du bloc.
+ * Accroche le clic sur la grille au pas demandé. Le bloc reste entièrement
+ * dans la journée : un clic tardif remonte le début du bloc.
  */
 export function snapNewBlockStart(
   clickedMin: number,
-  durationMin: number = DEFAULT_ELEMENT_DURATION_MIN
+  durationMin: number = DEFAULT_ELEMENT_DURATION_MIN,
+  step: number = SNAP_MINUTES
 ): number {
   const safeDuration = Number.isFinite(durationMin)
     ? Math.min(MINUTES_PER_DAY, Math.max(1, Math.round(durationMin)))
@@ -90,14 +97,22 @@ export function snapNewBlockStart(
   const rounded = Number.isFinite(clickedMin) ? Math.round(clickedMin) : 0
   const latestStart = Math.max(0, MINUTES_PER_DAY - safeDuration)
 
-  return clampMinutes(snapMinutes(rounded), 0, latestStart)
+  return clampMinutes(snapMinutes(rounded, step), 0, latestStart)
 }
 
 /** Brouillon d'un nouvel élément posé à une heure précise. */
-export function createNewElementDraft(input: NewElementDraftInput): ElementDraft {
+export function createNewElementDraft(
+  input: NewElementDraftInput,
+  options: NewElementDraftOptions = {}
+): ElementDraft {
   const kind = input.kind ?? 'task'
   const safeStartMin = Number.isFinite(input.startMin) ? Math.round(input.startMin) : 0
   const startMin = clampMinutes(safeStartMin, 0, MINUTES_PER_DAY - 1)
+  const taskDurationMin =
+    options.taskDurationMin !== undefined && Number.isFinite(options.taskDurationMin)
+      ? Math.min(MINUTES_PER_DAY, Math.max(1, Math.round(options.taskDurationMin)))
+      : DEFAULT_ELEMENT_DURATION_MIN
+  const durationMin = kind === 'task' ? taskDurationMin : DEFAULT_ELEMENT_DURATION_MIN
 
   return {
     variant: 'element',
@@ -108,7 +123,7 @@ export function createNewElementDraft(input: NewElementDraftInput): ElementDraft
     date: input.date,
     time: minutesToTime(startMin),
     noTime: false,
-    durationMin: String(DEFAULT_ELEMENT_DURATION_MIN),
+    durationMin: String(durationMin),
     estimateMin: '',
     status: kind === 'task' ? 'todo' : null
   }

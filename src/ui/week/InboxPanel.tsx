@@ -4,8 +4,9 @@ import { DRAG_START_DISTANCE_PX } from '../../core/drag'
 import { listInboxTasks, validateQuickTaskDraft, type InboxTask } from '../../core/inbox'
 import { taskDraftFrom, type TaskDraft, type TaskDraftValues } from '../../core/elementEditor'
 import { formatDurationMinutes } from '../../core/time'
-import type { Category, CategoryGroup } from '../../core/types'
+import type { Block, Category, CategoryGroup, Item } from '../../core/types'
 import { repositories } from '../../db/repositories'
+import { usePreferencesStore } from '../../state/preferences'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
 import { ElementEditor } from './ElementEditor'
@@ -19,7 +20,8 @@ interface InboxPanelProps {
 }
 
 interface InboxSnapshot {
-  tasks: InboxTask[]
+  items: Item[]
+  blocks: Block[]
   categories: Category[]
   categoryGroups: CategoryGroup[]
 }
@@ -45,6 +47,9 @@ export const InboxPanel = memo(function InboxPanel({
   onTaskDragStart,
   dropActive
 }: InboxPanelProps): React.JSX.Element {
+  const defaultTaskDurationMin = usePreferencesStore(
+    (state) => state.preferences.defaultTaskDurationMin
+  )
   const [collapsed, setCollapsed] = useState(false)
   const [snapshot, setSnapshot] = useState<InboxSnapshot | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -67,7 +72,8 @@ export const InboxPanel = memo(function InboxPanel({
       ])
 
       return {
-        tasks: listInboxTasks(items, blocks, categories),
+        items,
+        blocks,
         categories,
         categoryGroups
       }
@@ -82,7 +88,18 @@ export const InboxPanel = memo(function InboxPanel({
     return () => subscription.unsubscribe()
   }, [])
 
-  const tasks = useMemo(() => snapshot?.tasks ?? [], [snapshot])
+  const tasks = useMemo(
+    () =>
+      snapshot === null
+        ? []
+        : listInboxTasks(
+            snapshot.items,
+            snapshot.blocks,
+            snapshot.categories,
+            defaultTaskDurationMin
+          ),
+    [defaultTaskDurationMin, snapshot]
+  )
   const categories = useMemo(() => snapshot?.categories ?? [], [snapshot])
   const categoryGroups = useMemo(() => snapshot?.categoryGroups ?? [], [snapshot])
 
@@ -403,7 +420,7 @@ export const InboxPanel = memo(function InboxPanel({
               ) : visibleTasks.length === 0 ? (
                 <p className={styles.empty}>
                   {tasks.length === 0
-                    ? 'Aucune tâche à planifier.'
+                    ? 'Aucune tâche à planifier. Ajoutez-en une ci-dessus.'
                     : 'Aucune tâche dans cette catégorie.'}
                 </p>
               ) : (

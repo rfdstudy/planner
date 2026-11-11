@@ -98,30 +98,49 @@ export function addDays(date: LocalDate, days: number): LocalDate {
   return formatLocalDate(result)
 }
 
-/** Index du jour dans la semaine : 0 = lundi, 6 = dimanche. */
+/**
+ * Index du jour dans la semaine : 0 = lundi, 6 = dimanche.
+ * L'index ne dépend pas du premier jour choisi dans les réglages.
+ */
 export function getWeekdayIndex(date: LocalDate): number {
   return (parseLocalDate(date).getDay() + 6) % 7
 }
 
-/** Lundi de la semaine contenant `date`. */
-export function getWeekStart(date: LocalDate): LocalDate {
-  return addDays(date, -getWeekdayIndex(date))
+/** Vérifie qu'un premier jour de semaine est un index de 0 à 6. */
+export function isWeekStartsOn(value: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value <= 6
 }
 
-/** Dimanche de la semaine contenant `date`. */
-export function getWeekEnd(date: LocalDate): LocalDate {
-  return addDays(getWeekStart(date), 6)
+/**
+ * Premier jour de la semaine contenant `date`. `weekStartsOn` suit l'index
+ * français (0 = lundi, 6 = dimanche) et vaut lundi par défaut.
+ */
+export function getWeekStart(date: LocalDate, weekStartsOn: number = 0): LocalDate {
+  if (!isWeekStartsOn(weekStartsOn)) {
+    throw new RangeError('Le premier jour de la semaine doit être compris entre 0 et 6.')
+  }
+
+  const offset = (getWeekdayIndex(date) - weekStartsOn + 7) % 7
+  return addDays(date, -offset)
 }
 
-/** Les sept dates de la semaine, du lundi au dimanche. */
-export function getWeekDays(date: LocalDate): LocalDate[] {
-  const start = getWeekStart(date)
+/** Dernier jour de la semaine contenant `date`. */
+export function getWeekEnd(date: LocalDate, weekStartsOn: number = 0): LocalDate {
+  return addDays(getWeekStart(date, weekStartsOn), 6)
+}
+
+/** Les sept dates de la semaine, à partir du premier jour choisi. */
+export function getWeekDays(date: LocalDate, weekStartsOn: number = 0): LocalDate[] {
+  const start = getWeekStart(date, weekStartsOn)
   return Array.from({ length: 7 }, (_, index) => addDays(start, index))
 }
 
 /** Bornes inclusives de la semaine contenant `date`. */
-export function getWeekRange(date: LocalDate): { start: LocalDate; end: LocalDate } {
-  return { start: getWeekStart(date), end: getWeekEnd(date) }
+export function getWeekRange(
+  date: LocalDate,
+  weekStartsOn: number = 0
+): { start: LocalDate; end: LocalDate } {
+  return { start: getWeekStart(date, weekStartsOn), end: getWeekEnd(date, weekStartsOn) }
 }
 
 /** Nom court du jour en français, sans point final (`lun`, `mar`…). */
@@ -143,9 +162,9 @@ export function formatDayLabel(date: LocalDate): string {
  * Libellé d'une semaine du lundi au dimanche, par exemple « 9 – 15 novembre
  * 2026 ». Les mois sont abrégés lorsque la semaine traverse deux mois.
  */
-export function formatWeekLabel(date: LocalDate): string {
-  const start = parseLocalDate(getWeekStart(date))
-  const end = parseLocalDate(getWeekEnd(date))
+export function formatWeekLabel(date: LocalDate, weekStartsOn: number = 0): string {
+  const start = parseLocalDate(getWeekStart(date, weekStartsOn))
+  const end = parseLocalDate(getWeekEnd(date, weekStartsOn))
   const startYear = start.getFullYear()
   const endYear = end.getFullYear()
 

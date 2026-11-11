@@ -88,6 +88,10 @@ describe('temps restant d’une tâche', () => {
   it('affiche zéro sans estimation dès qu’un bloc existe', () => {
     expect(getRemainingTaskMinutes(makeItem({ estimateMin: null }), [makeBlock()])).toBe(0)
   })
+
+  it('utilise la durée par défaut des réglages', () => {
+    expect(getRemainingTaskMinutes(makeItem({ estimateMin: null }), [], 30)).toBe(30)
+  })
 })
 
 describe('présence dans « À planifier »', () => {
@@ -164,6 +168,12 @@ describe('liste du panneau', () => {
     const blocks = [makeBlock({ itemId: 'item-2', durationMin: 120 })]
 
     expect(listInboxTasks(items, blocks, []).map((task) => task.item.id)).toEqual(['item-1'])
+  })
+
+  it('applique la durée par défaut fournie aux tâches sans estimation', () => {
+    const items = [makeItem({ estimateMin: null })]
+
+    expect(listInboxTasks(items, [], [], 45)[0]?.remainingMin).toBe(45)
   })
 })
 
