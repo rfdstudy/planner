@@ -1,7 +1,7 @@
 import { MINUTES_PER_DAY, isLocalDate } from '../../core/time'
-import type { Block, LocalDate } from '../../core/types'
+import type { Block, Item, LocalDate } from '../../core/types'
 import type { PlannerDatabase } from '../database'
-import type { UndoHistory } from '../history'
+import type { UndoAction, UndoHistory } from '../history'
 import { RecordNotFoundError } from './base'
 import { BlockRepository } from './blocks'
 import { ItemRepository } from './items'
@@ -24,19 +24,27 @@ export interface PlaceTaskInput {
   durationMin: number
 }
 
+/** Résultat d'une suppression de tâche, utilisé par le message d'annulation. */
+export interface DeletedTaskResult {
+  item: Item
+  blockCount: number
+  action: UndoAction
+}
+
 /**
- * Écritures du glisser-déposer.
+ * Écritures de la grille et du panneau « À planifier ».
  *
  * Chaque opération est atomique du point de vue de l'utilisateur et pousse son
- * inverse dans l'historique. L'interface ne dispose ainsi que de quatre gestes
- * métier : déplacer, redimensionner, placer une tâche et retirer un bloc.
+ * inverse dans l'historique. L'interface ne dispose ainsi que de gestes
+ * métier : déplacer, redimensionner, placer une tâche, retirer un bloc et
+ * supprimer une tâche avec ses blocs.
  */
 export class PlanningRepository {
   private readonly blocks: BlockRepository
   private readonly items: ItemRepository
 
   constructor(
-    database: PlannerDatabase,
+    private readonly database: PlannerDatabase,
     private readonly history: UndoHistory
   ) {
     this.blocks = new BlockRepository(database.blocks)
@@ -161,6 +169,58 @@ export class PlanningRepository {
     })
 
     return deleted
+  }
+
+  /**
+   * Supprime logiquement une tâche et tous ses blocs déjà placés, dans une même
+   * transaction. L'annulation restaure la tâche et chacun de ses blocs.
+   */
+  async deleteTask(itemId: string): Promise<DeletedTaskResult> {
+    const { item: deletedItem, blocks } = await this.database.transaction(
+      'rw',
+      [this.database.items, this.database.blocks],
+      async () => {
+        const item = await this.items.get(itemId)
+
+        if (item === undefined) {
+          throw new RecordNotFoundError('Élément', itemId)
+        }
+
+        if (item.kind !== 'task') {
+          throw new RangeError('Seules les tâches peuvent être supprimées depuis le panneau.')
+        }
+
+        const activeBlocks = await this.blocks.listByItem(itemId)
+        const deleted = await this.items.softDelete(itemId)
+
+        for (const block of activeBlocks) {
+          await this.blocks.softDelete(block.id)
+        }
+
+        return { item: deleted, blocks: activeBlocks }
+      }
+    )
+
+    const action: UndoAction = {
+      label: 'Suppression d’une tâche',
+      undo: async () => {
+        await this.database.transaction(
+          'rw',
+          [this.database.items, this.database.blocks],
+          async () => {
+            await this.items.restore(itemId)
+
+            for (const block of blocks) {
+              await this.blocks.restore(block.id)
+            }
+          }
+        )
+      }
+    }
+
+    this.history.push(action)
+
+    return { item: deletedItem, blockCount: blocks.length, action }
   }
 
   private async requireBlock(blockId: string): Promise<Block> {

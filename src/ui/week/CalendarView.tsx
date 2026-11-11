@@ -33,7 +33,9 @@ import type {
   TemplateKind
 } from '../../core/types'
 import { loadDemoWeek } from '../../db/demoWeek'
+import type { UndoAction } from '../../db/history'
 import { repositories } from '../../db/repositories'
+import type { DeletedTaskResult } from '../../db/repositories/planning'
 import { usePreferencesStore } from '../../state/preferences'
 import { useUiStore, type CalendarViewMode, type CreationKind } from '../../state/ui'
 import { categoryColorStyle } from '../categoryColorStyle'
@@ -89,6 +91,12 @@ interface OccurrenceFormValues {
   durationMin: number
 }
 
+interface DeletedTaskToast {
+  id: string
+  message: string
+  action: UndoAction
+}
+
 interface CalendarViewProps {
   mode: CalendarViewMode
 }
@@ -117,6 +125,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const [demoError, setDemoError] = useState<string | null>(null)
   const [editor, setEditor] = useState<ElementEditorSession | null>(null)
   const [scopeRequest, setScopeRequest] = useState<RecurrenceScopeRequest | null>(null)
+  const [deletedTaskToast, setDeletedTaskToast] = useState<DeletedTaskToast | null>(null)
   const [now, setNow] = useState(() => new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -394,17 +403,36 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     }
   }, [])
 
-  const handleUndo = useCallback(async (): Promise<void> => {
+  const handleUndo = useCallback(async (target?: UndoAction): Promise<void> => {
     try {
-      const action = await repositories.history.undo()
+      const action = await repositories.history.undo(target)
 
       if (action !== null) {
         setActionError(null)
+        setDeletedTaskToast((current) =>
+          current !== null && current.action === action ? null : current
+        )
       }
     } catch {
       setActionError('La dernière action n’a pas pu être annulée.')
     }
   }, [])
+
+  const handleTaskDeleted = useCallback((result: DeletedTaskResult): void => {
+    setActionError(null)
+    setDeletedTaskToast({
+      id: crypto.randomUUID(),
+      message: deletedTaskMessage(result.blockCount),
+      action: result.action
+    })
+  }, [])
+
+  useEffect(() => {
+    if (deletedTaskToast === null) return
+
+    const timer = window.setTimeout(() => setDeletedTaskToast(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [deletedTaskToast])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -802,6 +830,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         <InboxPanel
           onTaskDragStart={drag.startTaskDrag}
           dropActive={drag.preview?.overInbox === true && drag.session?.kind === 'move'}
+          onTaskDeleted={handleTaskDeleted}
         />
       </div>
 
@@ -855,6 +884,24 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
           onCancel={handleScopeCancel}
         />
       )}
+
+      {deletedTaskToast !== null && (
+        <div
+          key={deletedTaskToast.id}
+          className={styles.undoToast}
+          role="status"
+          aria-live="polite"
+        >
+          <span className={styles.undoToastMessage}>{deletedTaskToast.message}</span>
+          <button
+            type="button"
+            className={styles.undoToastButton}
+            onClick={() => void handleUndo(deletedTaskToast.action)}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -864,6 +911,12 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
     target instanceof HTMLElement &&
     target.closest('input, textarea, select, [contenteditable="true"]') !== null
   )
+}
+
+function deletedTaskMessage(blockCount: number): string {
+  if (blockCount === 0) return 'Tâche supprimée'
+
+  return `Tâche et ${blockCount} ${blockCount === 1 ? 'bloc' : 'blocs'} supprimés`
 }
 
 function sameOccurrenceValues(entry: ScheduleEntry, values: ElementDraftValues): boolean {

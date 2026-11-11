@@ -270,6 +270,12 @@
   scrollbar-width: thin;
 }
 
+.rowWrap {
+  position: relative;
+  flex: 0 0 var(--inbox-row-height);
+  width: 100%;
+}
+
 .row {
   display: flex;
   flex: 0 0 var(--inbox-row-height);
@@ -291,8 +297,15 @@
   cursor: grabbing;
 }
 
-.row:hover {
+.row:hover,
+.rowWrap:hover .row,
+.rowWrap:focus-within .row {
   background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* Une tâche terminée reste visible, grisée (document 3). */
@@ -324,6 +337,54 @@
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: opacity var(--t-fast);
+}
+
+/* La corbeille remplace le temps restant au survol ou au focus clavier. */
+.rowWrap:hover .remaining,
+.rowWrap:focus-within .remaining {
+  opacity: 0;
+}
+
+.deleteButton {
+  position: absolute;
+  top: 50%;
+  right: var(--sp-1);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-block);
+  color: var(--text-3);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition:
+    opacity var(--t-fast),
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.rowWrap:hover .deleteButton,
+.rowWrap:focus-within .deleteButton {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.deleteButton:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+
+.deleteButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.listError {
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
 }
 
 .empty {

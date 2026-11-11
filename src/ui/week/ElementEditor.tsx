@@ -283,7 +283,9 @@ export function ElementEditor({
   async function handleDelete(): Promise<void> {
     if (busy || onDelete === undefined) return
 
-    if (!confirmingDelete) {
+    // Une tâche sans bloc se supprime immédiatement et reste annulable depuis
+    // le message affiché par le calendrier.
+    if (!confirmingDelete && mode !== 'task') {
       setError(null)
       setConfirmingDelete(true)
       return

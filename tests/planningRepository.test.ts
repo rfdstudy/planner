@@ -173,6 +173,31 @@ describe('placement d’une tâche', () => {
   })
 })
 
+describe('suppression d’une tâche', () => {
+  it('supprime la tâche et ses blocs, puis les restaure à l’annulation', async () => {
+    const itemId = await createTask({ estimateMin: 120 })
+    const firstBlockId = await createBlock(itemId, '2026-11-12', 600, 60)
+    const secondBlockId = await createBlock(itemId, '2026-11-13', 900, 60)
+
+    const result = await repositories.planning.deleteTask(itemId)
+
+    expect(result.blockCount).toBe(2)
+    expect(await repositories.items.get(itemId)).toBeUndefined()
+    expect(await repositories.blocks.listByItem(itemId)).toHaveLength(0)
+    expect(await repositories.blocks.get(firstBlockId)).toBeUndefined()
+    expect(await repositories.blocks.get(secondBlockId)).toBeUndefined()
+    expect(repositories.history.size).toBe(1)
+
+    await repositories.history.undo()
+
+    expect((await repositories.items.get(itemId))?.deletedAt).toBeNull()
+    expect(await repositories.blocks.listByItem(itemId)).toHaveLength(2)
+    expect((await repositories.blocks.get(firstBlockId))?.deletedAt).toBeNull()
+    expect((await repositories.blocks.get(secondBlockId))?.deletedAt).toBeNull()
+    expect(repositories.history.size).toBe(0)
+  })
+})
+
 describe('retrait d’un bloc vers le panneau', () => {
   it('retire le bloc et s’annule en le restaurant', async () => {
     const itemId = await createTask({ estimateMin: 60 })

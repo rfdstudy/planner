@@ -6,6 +6,7 @@ import { taskDraftFrom, type TaskDraft, type TaskDraftValues } from '../../core/
 import { formatDurationMinutes } from '../../core/time'
 import type { Block, Category, CategoryGroup, Item } from '../../core/types'
 import { repositories } from '../../db/repositories'
+import type { DeletedTaskResult } from '../../db/repositories/planning'
 import { usePreferencesStore } from '../../state/preferences'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
@@ -17,6 +18,8 @@ interface InboxPanelProps {
   onTaskDragStart: (task: InboxTask, event: React.PointerEvent<HTMLButtonElement>) => void
   /** Vrai lorsqu'un bloc est survolé au-dessus du panneau. */
   dropActive: boolean
+  /** Prévient la vue calendrier pour afficher le message d'annulation. */
+  onTaskDeleted: (result: DeletedTaskResult) => void
 }
 
 interface InboxSnapshot {
@@ -45,7 +48,8 @@ interface TaskEditorSession {
  */
 export const InboxPanel = memo(function InboxPanel({
   onTaskDragStart,
-  dropActive
+  dropActive,
+  onTaskDeleted
 }: InboxPanelProps): React.JSX.Element {
   const defaultTaskDurationMin = usePreferencesStore(
     (state) => state.preferences.defaultTaskDurationMin
@@ -58,6 +62,7 @@ export const InboxPanel = memo(function InboxPanel({
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [estimateMin, setEstimateMin] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [taskEditor, setTaskEditor] = useState<TaskEditorSession | null>(null)
   const taskPointerDownRef = useRef<{ x: number; y: number } | null>(null)
@@ -244,6 +249,36 @@ export const InboxPanel = memo(function InboxPanel({
     openTask(task, event)
   }
 
+  async function deleteTask(itemId: string): Promise<void> {
+    const result = await repositories.planning.deleteTask(itemId)
+
+    setDeleteError(null)
+    setTaskEditor((current) => (current?.itemId === itemId ? null : current))
+    onTaskDeleted(result)
+  }
+
+  async function handleTaskDelete(task: InboxTask): Promise<void> {
+    try {
+      await deleteTask(task.item.id)
+    } catch {
+      setDeleteError('La tâche n’a pas pu être supprimée. Réessayez.')
+    }
+  }
+
+  async function handleEditorTaskDelete(): Promise<void> {
+    if (taskEditor === null) return
+
+    await deleteTask(taskEditor.itemId)
+  }
+
+  function handleTaskKeyDown(task: InboxTask, event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'Delete' || event.repeat) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    void handleTaskDelete(task)
+  }
+
   async function handleTaskSubmit(values: TaskDraftValues): Promise<void> {
     if (taskEditor === null) return
 
@@ -415,6 +450,12 @@ export const InboxPanel = memo(function InboxPanel({
             </div>
 
             <div className={styles.list}>
+              {deleteError !== null && (
+                <p className={`${styles.error} ${styles.listError}`} role="alert">
+                  {deleteError}
+                </p>
+              )}
+
               {loadError ? (
                 <p className={styles.empty}>Les tâches n’ont pas pu être chargées.</p>
               ) : visibleTasks.length === 0 ? (
@@ -425,27 +466,44 @@ export const InboxPanel = memo(function InboxPanel({
                 </p>
               ) : (
                 visibleTasks.map((task) => (
-                  <button
+                  <div
+                    className={styles.rowWrap}
                     key={task.item.id}
-                    type="button"
-                    className={
-                      task.item.status === 'done' ? `${styles.row} ${styles.rowDone}` : styles.row
-                    }
-                    onPointerDown={(event) => handleTaskPointerDown(task, event)}
-                    onClick={(event) => handleTaskClick(task, event)}
+                    onKeyDown={(event) => handleTaskKeyDown(task, event)}
                   >
-                    <span
-                      className={styles.dot}
-                      style={
-                        task.category === null ? undefined : categoryColorStyle(task.category.color)
+                    <button
+                      type="button"
+                      className={
+                        task.item.status === 'done' ? `${styles.row} ${styles.rowDone}` : styles.row
                       }
-                      aria-hidden="true"
-                    />
-                    <span className={styles.rowTitle}>{task.item.title}</span>
-                    <span className={styles.remaining}>
-                      {formatDurationMinutes(task.remainingMin)}
-                    </span>
-                  </button>
+                      onPointerDown={(event) => handleTaskPointerDown(task, event)}
+                      onClick={(event) => handleTaskClick(task, event)}
+                    >
+                      <span
+                        className={styles.dot}
+                        style={
+                          task.category === null
+                            ? undefined
+                            : categoryColorStyle(task.category.color)
+                        }
+                        aria-hidden="true"
+                      />
+                      <span className={styles.rowTitle}>{task.item.title}</span>
+                      <span className={styles.remaining}>
+                        {formatDurationMinutes(task.remainingMin)}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      aria-label="Supprimer la tâche"
+                      title="Supprimer la tâche"
+                      onClick={() => void handleTaskDelete(task)}
+                    >
+                      <Icon name="trash" size={14} />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -469,6 +527,7 @@ export const InboxPanel = memo(function InboxPanel({
           categoryGroups={categoryGroups}
           onClose={() => setTaskEditor(null)}
           onSubmitTask={handleTaskSubmit}
+          onDelete={handleEditorTaskDelete}
         />
       )}
     </>
