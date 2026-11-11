@@ -1,7 +1,9 @@
 appId: com.planner.app
 productName: Planner
+copyright: Copyright © 2026 Planner
 directories:
   buildResources: build
+  output: release
 files:
   - '!**/.vscode/*'
   - '!electron/**/*'
@@ -14,12 +16,21 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 win:
+  target:
+    - nsis
   executableName: planner
+  icon: build/icon.ico
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-setup.${ext}
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
+  # Les données restent dans %APPDATA%\Planner : une désinstallation,
+  # une réinstallation ou une mise à jour ne les efface jamais.
+  deleteAppDataOnUninstall: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false

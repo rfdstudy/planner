@@ -1,5 +1,6 @@
 {
   "name": "planner",
+  "productName": "Planner",
   "version": "0.1.0",
   "description": "Planner v2 — application de planification personnelle",
   "main": "./out/main/index.js",
@@ -16,8 +17,9 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "install-electron && electron-builder install-app-deps",
+    "dist": "npm run build && electron-builder --win nsis",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win"
+    "build:win": "npm run dist"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
