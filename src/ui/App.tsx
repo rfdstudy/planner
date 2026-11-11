@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
 import { repositories } from '../db/repositories'
 import { prepareApplication, type ApplicationStartup } from '../db/startup'
+import { useUiStore } from '../state/ui'
 import { CategoriesScreen } from './categories/CategoriesScreen'
-import { AppMenu } from './components/AppMenu'
+import { Icon } from './components/Icon'
 import { WelcomeScreen } from './onboarding/WelcomeScreen'
+import { WeekView } from './week/WeekView'
 import styles from './App.module.css'
-
-type Screen = 'categories'
 
 function App(): React.JSX.Element {
   const [startup, setStartup] = useState<ApplicationStartup | null>(null)
   const [startupError, setStartupError] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [screen, setScreen] = useState<Screen>('categories')
+  const screen = useUiStore((state) => state.screen)
+  const showWeek = useUiStore((state) => state.showWeek)
 
   useEffect(() => {
     let cancelled = false
@@ -61,13 +62,22 @@ function App(): React.JSX.Element {
     return <WelcomeScreen onFinished={() => setStartup({ firstLaunch: false })} />
   }
 
+  if (screen === 'week') {
+    return <WeekView />
+  }
+
   return (
     <div className={styles.app}>
       <header className={styles.topBar}>
+        <button type="button" className={styles.backButton} onClick={() => showWeek()}>
+          <Icon name="chevronLeft" size={15} />
+          Semaine
+        </button>
         <span className={styles.brand}>Planner</span>
-        <AppMenu onOpenCategories={() => setScreen('categories')} />
       </header>
-      <main className={styles.content}>{screen === 'categories' && <CategoriesScreen />}</main>
+      <main className={styles.content}>
+        <CategoriesScreen />
+      </main>
     </div>
   )
 }

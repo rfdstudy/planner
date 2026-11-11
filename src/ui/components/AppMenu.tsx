@@ -4,9 +4,16 @@ import styles from './AppMenu.module.css'
 
 interface AppMenuProps {
   onOpenCategories: () => void
+  /** Commande de développement uniquement. */
+  onLoadDemo?: () => void
+  demoLoading?: boolean
 }
 
-export function AppMenu({ onOpenCategories }: AppMenuProps): React.JSX.Element {
+export function AppMenu({
+  onOpenCategories,
+  onLoadDemo,
+  demoLoading = false
+}: AppMenuProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -58,15 +65,31 @@ export function AppMenu({ onOpenCategories }: AppMenuProps): React.JSX.Element {
             type="button"
             className={styles.item}
             role="menuitem"
-            aria-current="page"
             onClick={() => {
               setOpen(false)
               onOpenCategories()
             }}
           >
-            <Icon name="check" size={14} className={styles.itemIcon} />
             Catégories
           </button>
+
+          {import.meta.env.DEV && onLoadDemo !== undefined && (
+            <>
+              <div className={styles.divider} role="separator" />
+              <button
+                type="button"
+                className={styles.item}
+                role="menuitem"
+                disabled={demoLoading}
+                onClick={() => {
+                  setOpen(false)
+                  onLoadDemo()
+                }}
+              >
+                {demoLoading ? 'Chargement…' : 'Charger des données de démonstration'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

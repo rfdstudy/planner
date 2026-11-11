@@ -36,6 +36,25 @@ export interface FreeSlotOptions {
   minimumDurationMin?: number
 }
 
+/** Contenu affichable dans un bloc selon sa hauteur (document 3). */
+export type BlockContentMode = 'title' | 'title-and-start' | 'title-and-range'
+
+/**
+ * Niveau de détail du contenu d'un bloc : titre seul sous 30 minutes, heure de
+ * début de 30 à 59 minutes, puis plage horaire complète dès 60 minutes.
+ */
+export function getBlockContentMode(durationMin: number): BlockContentMode {
+  if (durationMin < 30) return 'title'
+  if (durationMin < 60) return 'title-and-start'
+
+  return 'title-and-range'
+}
+
+/** La catégorie n'apparaît qu'au-delà de 90 minutes (document 3). */
+export function showsBlockCategory(durationMin: number): boolean {
+  return durationMin > 90
+}
+
 type TimedBlock<T extends SchedulableBlock> = T & { startMin: number }
 
 function endOf(block: TimedBlock<SchedulableBlock>): number {

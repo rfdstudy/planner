@@ -1,0 +1,143 @@
+.block {
+  position: absolute;
+  overflow: hidden;
+  border-radius: var(--radius-block);
+  transition: background-color var(--t-fast);
+}
+
+.fixed {
+  background: var(--bg-subtle);
+  color: var(--text-2);
+}
+
+.fixed:hover {
+  background: var(--bg-hover);
+}
+
+.task {
+  border-left: 3px solid var(--category-color, var(--line-strong));
+  background: color-mix(in srgb, var(--category-color, var(--line-strong)) 10%, var(--bg));
+  color: var(--text);
+}
+
+.task:hover {
+  background: color-mix(in srgb, var(--category-color, var(--line-strong)) 15%, var(--bg));
+}
+
+.exam {
+  border-left: 3px solid var(--alert);
+  background: var(--alert-soft);
+  color: var(--text);
+}
+
+.exam:hover {
+  background: color-mix(in srgb, var(--alert) 9%, var(--alert-soft));
+}
+
+.free {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.free:hover {
+  background: var(--accent-soft);
+}
+
+.done {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: 4px 7px;
+  overflow: hidden;
+}
+
+.task .content,
+.exam .content {
+  padding-left: 5px;
+}
+
+.titleLine {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.examDot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fixed .title,
+.free .title {
+  font-weight: 400;
+}
+
+.inlineTime,
+.timeLine {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.inlineTime {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.timeLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.countdown {
+  color: var(--text-3);
+}
+
+.categoryLine {
+  margin-top: auto;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.compact .content {
+  padding: 1px 6px;
+}
+
+.task.compact .content,
+.exam.compact .content {
+  padding-left: 4px;
+}
+
+.compact .title {
+  font-size: var(--fs-xs);
+  line-height: 1.15;
+}

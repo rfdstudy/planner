@@ -9,8 +9,17 @@ export const SNAP_MINUTES = 15
 const LOCAL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const TIME_PATTERN = /^(\d{2}):(\d{2})$/
 
+const WEEKDAY_SHORT_FORMAT = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
+const MONTH_LONG_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'long' })
+const MONTH_SHORT_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'short' })
+
 function pad2(value: number): string {
   return String(value).padStart(2, '0')
+}
+
+function utcDayNumber(date: LocalDate): number {
+  const parsed = parseLocalDate(date)
+  return Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()) / 86_400_000
 }
 
 /**
@@ -102,6 +111,53 @@ export function getWeekDays(date: LocalDate): LocalDate[] {
 /** Bornes inclusives de la semaine contenant `date`. */
 export function getWeekRange(date: LocalDate): { start: LocalDate; end: LocalDate } {
   return { start: getWeekStart(date), end: getWeekEnd(date) }
+}
+
+/** Nom court du jour en français, sans point final (`lun`, `mar`…). */
+export function formatWeekdayShort(date: LocalDate): string {
+  return WEEKDAY_SHORT_FORMAT.format(parseLocalDate(date)).replace(/\.$/, '')
+}
+
+/**
+ * Libellé d'une semaine du lundi au dimanche, par exemple « 9 – 15 novembre
+ * 2026 ». Les mois sont abrégés lorsque la semaine traverse deux mois.
+ */
+export function formatWeekLabel(date: LocalDate): string {
+  const start = parseLocalDate(getWeekStart(date))
+  const end = parseLocalDate(getWeekEnd(date))
+  const startYear = start.getFullYear()
+  const endYear = end.getFullYear()
+
+  if (startYear !== endYear) {
+    return `${start.getDate()} ${MONTH_SHORT_FORMAT.format(start)} ${startYear} – ${end.getDate()} ${MONTH_SHORT_FORMAT.format(end)} ${endYear}`
+  }
+
+  if (start.getMonth() !== end.getMonth()) {
+    return `${start.getDate()} ${MONTH_SHORT_FORMAT.format(start)} – ${end.getDate()} ${MONTH_SHORT_FORMAT.format(end)} ${startYear}`
+  }
+
+  return `${start.getDate()} – ${end.getDate()} ${MONTH_LONG_FORMAT.format(start)} ${startYear}`
+}
+
+/** Nombre de jours calendaires de `from` vers `to` (négatif si `to` précède). */
+export function differenceInCalendarDays(from: LocalDate, to: LocalDate): number {
+  return Math.round(utcDayNumber(to) - utcDayNumber(from))
+}
+
+/**
+ * Échéance relative à `referenceDate` : « J-3 » dans trois jours,
+ * « Aujourd'hui » le jour même, « J+2 » deux jours après.
+ */
+export function formatDaysUntil(
+  targetDate: LocalDate,
+  referenceDate: LocalDate = todayLocalDate()
+): string {
+  const days = differenceInCalendarDays(referenceDate, targetDate)
+
+  if (days === 0) return "Aujourd'hui"
+  if (days > 0) return `J-${days}`
+
+  return `J+${Math.abs(days)}`
 }
 
 /** Formate des minutes depuis minuit en `HH:MM` (1440 donne `24:00`). */

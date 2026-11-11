@@ -3,7 +3,11 @@ import {
   MINUTES_PER_DAY,
   addDays,
   clampMinutes,
+  differenceInCalendarDays,
+  formatDaysUntil,
   formatLocalDate,
+  formatWeekLabel,
+  formatWeekdayShort,
   getWeekDays,
   getWeekEnd,
   getWeekRange,
@@ -83,6 +87,37 @@ describe('semaine du lundi au dimanche', () => {
     expect(getWeekdayIndex('2026-11-09')).toBe(0)
     expect(getWeekdayIndex('2026-11-12')).toBe(3)
     expect(getWeekdayIndex('2026-11-15')).toBe(6)
+  })
+})
+
+describe('libellés de calendrier', () => {
+  it('écrit une semaine dans le même mois', () => {
+    expect(formatWeekLabel('2026-11-12')).toBe('9 – 15 novembre 2026')
+  })
+
+  it('abrège les mois lorsque la semaine en traverse deux', () => {
+    expect(formatWeekLabel('2026-12-02')).toBe('30 nov. – 6 déc. 2026')
+  })
+
+  it('affiche les deux années au changement d’année', () => {
+    expect(formatWeekLabel('2026-01-01')).toBe('29 déc. 2025 – 4 janv. 2026')
+  })
+
+  it('abrège les jours sans point final', () => {
+    expect(formatWeekdayShort('2026-11-09')).toBe('lun')
+    expect(formatWeekdayShort('2026-11-15')).toBe('dim')
+  })
+
+  it('compte les jours calendaires dans les deux sens', () => {
+    expect(differenceInCalendarDays('2026-11-10', '2026-11-12')).toBe(2)
+    expect(differenceInCalendarDays('2026-11-12', '2026-11-10')).toBe(-2)
+    expect(differenceInCalendarDays('2026-11-12', '2026-11-12')).toBe(0)
+  })
+
+  it('formate une échéance en J moins ou J plus', () => {
+    expect(formatDaysUntil('2026-11-14', '2026-11-10')).toBe('J-4')
+    expect(formatDaysUntil('2026-11-10', '2026-11-10')).toBe("Aujourd'hui")
+    expect(formatDaysUntil('2026-11-08', '2026-11-10')).toBe('J+2')
   })
 })
 

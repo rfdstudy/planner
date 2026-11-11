@@ -48,6 +48,17 @@
   background: var(--bg-hover);
 }
 
-.itemIcon {
+.item:disabled {
   color: var(--text-3);
+  cursor: default;
+}
+
+.item:disabled:hover {
+  background: transparent;
+}
+
+.divider {
+  height: 1px;
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--line);
 }

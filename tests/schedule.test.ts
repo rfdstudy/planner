@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getFreeSlots, layoutBlocks, type SchedulableBlock } from '../src/core/schedule'
+import {
+  getBlockContentMode,
+  getFreeSlots,
+  layoutBlocks,
+  showsBlockCategory,
+  type SchedulableBlock
+} from '../src/core/schedule'
 
 function block(id: string, startMin: number | null, durationMin: number): SchedulableBlock {
   return { id, startMin, durationMin }
@@ -99,6 +105,28 @@ describe('placement côte à côte des blocs', () => {
 
     expect(placements).toHaveLength(1)
     expect(placements[0]?.block.id).toBe('normal')
+  })
+})
+
+describe('contenu des blocs selon leur hauteur', () => {
+  it('masque l’heure sous 30 minutes', () => {
+    expect(getBlockContentMode(15)).toBe('title')
+    expect(getBlockContentMode(29)).toBe('title')
+  })
+
+  it('affiche seulement l’heure de début de 30 à 59 minutes', () => {
+    expect(getBlockContentMode(30)).toBe('title-and-start')
+    expect(getBlockContentMode(59)).toBe('title-and-start')
+  })
+
+  it('affiche la plage horaire dès 60 minutes', () => {
+    expect(getBlockContentMode(60)).toBe('title-and-range')
+    expect(getBlockContentMode(120)).toBe('title-and-range')
+  })
+
+  it('ajoute la catégorie seulement au-delà de 90 minutes', () => {
+    expect(showsBlockCategory(90)).toBe(false)
+    expect(showsBlockCategory(91)).toBe(true)
   })
 })
 
