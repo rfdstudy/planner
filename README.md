@@ -42,6 +42,21 @@ Le dossier `release/win-unpacked/` contient alors l'application complète.
 > L'installateur n'est pas signé numériquement : Windows SmartScreen peut
 > afficher un avertissement au premier lancement.
 
+## Mettre à jour l'application
+
+1. Avant la mise à jour, ouvrez **Réglages** dans Planner et cliquez sur
+   **Exporter la sauvegarde (JSON)**. Conservez ce fichier : il permet de
+   restaurer toutes les données en cas de problème.
+2. Fermez complètement Planner (toutes ses fenêtres).
+3. Lancez le nouvel installateur `Planner-x.y.z-setup.exe`.
+4. Installez-le par-dessus la version existante : il n'est pas nécessaire de
+   désinstaller l'ancienne version.
+5. Relancez Planner. Les données restent dans `%APPDATA%\Planner` et sont
+   conservées.
+
+> Une désinstallation, une réinstallation ou une mise à jour ne supprime pas
+> les données. L'export JSON reste la sauvegarde à conserver durablement.
+
 ## Où sont les données
 
 Les données restent sur l'ordinateur, dans le dossier de données de
