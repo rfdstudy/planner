@@ -28,6 +28,8 @@ interface ElementEditorProps {
   anchor: FloatingAnchor
   categories: readonly Category[]
   categoryGroups: readonly CategoryGroup[]
+  /** Bloc calculé depuis la semaine type : type limité et pas de notes. */
+  recurring?: boolean
   onClose: () => void
   /** Appelé pour un élément de la grille. */
   onSubmit?: (values: ElementDraftValues) => Promise<void>
@@ -53,6 +55,7 @@ export function ElementEditor({
   anchor,
   categories,
   categoryGroups,
+  recurring = false,
   onClose,
   onSubmit,
   onSubmitTask,
@@ -66,6 +69,14 @@ export function ElementEditor({
   const panelRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const busy = pending !== null
+
+  const kindOptions = useMemo(
+    () =>
+      recurring
+        ? KIND_OPTIONS.filter((option) => option.value !== 'task' && option.value !== 'exam')
+        : KIND_OPTIONS,
+    [recurring]
+  )
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === draft.categoryId) ?? null,
@@ -231,6 +242,7 @@ export function ElementEditor({
 
       try {
         await onSubmitTask(validation.values)
+        setPending(null)
       } catch {
         setError('L’enregistrement a échoué. Réessayez.')
         setPending(null)
@@ -258,6 +270,7 @@ export function ElementEditor({
 
     try {
       await onSubmit(validation.values)
+      setPending(null)
     } catch {
       setError('L’enregistrement a échoué. Réessayez.')
       setPending(null)
@@ -311,6 +324,7 @@ export function ElementEditor({
               ? 'Modifier la tâche'
               : 'Modifier'}
         </h2>
+        {recurring && <span className={styles.recurringBadge}>Semaine type</span>}
         <button
           type="button"
           className={styles.closeButton}
@@ -352,7 +366,7 @@ export function ElementEditor({
                   disabled={busy}
                   onChange={(event) => handleKindChange(event.target.value as ItemKind)}
                 >
-                  {KIND_OPTIONS.map((option) => (
+                  {kindOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -491,19 +505,21 @@ export function ElementEditor({
             </label>
           )}
 
-          <label className={styles.field}>
-            <span className={styles.label}>Notes</span>
-            <textarea
-              className={`${styles.control} ${styles.textarea}`}
-              rows={2}
-              value={draft.notes}
-              placeholder="Notes"
-              aria-label="Notes"
-              maxLength={4000}
-              disabled={busy}
-              onChange={(event) => updateCommon({ notes: event.target.value })}
-            />
-          </label>
+          {!recurring && (
+            <label className={styles.field}>
+              <span className={styles.label}>Notes</span>
+              <textarea
+                className={`${styles.control} ${styles.textarea}`}
+                rows={2}
+                value={draft.notes}
+                placeholder="Notes"
+                aria-label="Notes"
+                maxLength={4000}
+                disabled={busy}
+                onChange={(event) => updateCommon({ notes: event.target.value })}
+              />
+            </label>
+          )}
 
           {error !== null && (
             <p className={styles.error} role="alert">
@@ -514,7 +530,11 @@ export function ElementEditor({
 
         {confirmingDelete && (
           <div className={styles.confirmDelete}>
-            <span>Retirer ce bloc de la grille ?</span>
+            <span>
+              {recurring
+                ? 'Supprimer ce bloc de la semaine type ?'
+                : 'Retirer ce bloc de la grille ?'}
+            </span>
             <div className={styles.confirmActions}>
               <button
                 type="button"

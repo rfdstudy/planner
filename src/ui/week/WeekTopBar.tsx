@@ -8,6 +8,7 @@ interface WeekTopBarProps {
   onNextWeek: () => void
   onToday: () => void
   onOpenCategories: () => void
+  onOpenTemplates: () => void
   onLoadDemo?: () => void
   demoLoading: boolean
 }
@@ -18,6 +19,7 @@ export function WeekTopBar({
   onNextWeek,
   onToday,
   onOpenCategories,
+  onOpenTemplates,
   onLoadDemo,
   demoLoading
 }: WeekTopBarProps): React.JSX.Element {
@@ -84,6 +86,7 @@ export function WeekTopBar({
 
         <AppMenu
           onOpenCategories={onOpenCategories}
+          onOpenTemplates={onOpenTemplates}
           onLoadDemo={onLoadDemo}
           demoLoading={demoLoading}
         />

@@ -10,6 +10,11 @@ const LOCAL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const TIME_PATTERN = /^(\d{2}):(\d{2})$/
 
 const WEEKDAY_SHORT_FORMAT = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
+const LONG_DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long'
+})
 const MONTH_LONG_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'long' })
 const MONTH_SHORT_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'short' })
 
@@ -116,6 +121,11 @@ export function getWeekRange(date: LocalDate): { start: LocalDate; end: LocalDat
 /** Nom court du jour en français, sans point final (`lun`, `mar`…). */
 export function formatWeekdayShort(date: LocalDate): string {
   return WEEKDAY_SHORT_FORMAT.format(parseLocalDate(date)).replace(/\.$/, '')
+}
+
+/** Date longue française, sans année (`lundi 9 novembre`). */
+export function formatLongDate(date: LocalDate): string {
+  return LONG_DATE_FORMAT.format(parseLocalDate(date))
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { BlockPlacement } from '../../core/schedule'
-import type { Block, Category, CategoryGroup, Item, LocalDate } from '../../core/types'
+import type { Block, Category, CategoryGroup, Item, LocalDate, Template } from '../../core/types'
 
 /** Point d'ancrage de la fenêtre flottante, en coordonnées du viewport. */
 export interface FloatingAnchor {
@@ -12,6 +12,8 @@ export interface WeekEntry {
   block: Block
   item: Item
   category: Category | null
+  /** Modèle d'origine lorsque le bloc est une occurrence virtuelle. */
+  template: Template | null
 }
 
 /** Bloc horaire avec sa position calculée dans la colonne du jour. */

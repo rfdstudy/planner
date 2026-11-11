@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { addDays, getWeekStart, todayLocalDate } from '../core/time'
 import type { LocalDate } from '../core/types'
 
-export type AppScreen = 'week' | 'categories'
+export type AppScreen = 'week' | 'categories' | 'templates'
 
 interface UiState {
   screen: AppScreen
@@ -13,6 +13,7 @@ interface UiState {
   goToToday: () => void
   showWeek: (weekStart?: LocalDate) => void
   openCategories: () => void
+  openTemplates: () => void
 }
 
 /**
@@ -30,5 +31,6 @@ export const useUiStore = create<UiState>((set) => ({
       screen: 'week',
       weekStart: weekStart === undefined ? state.weekStart : getWeekStart(weekStart)
     })),
-  openCategories: () => set({ screen: 'categories' })
+  openCategories: () => set({ screen: 'categories' }),
+  openTemplates: () => set({ screen: 'templates' })
 }))

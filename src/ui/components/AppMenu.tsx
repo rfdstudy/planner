@@ -4,6 +4,7 @@ import styles from './AppMenu.module.css'
 
 interface AppMenuProps {
   onOpenCategories: () => void
+  onOpenTemplates: () => void
   /** Commande de développement uniquement. */
   onLoadDemo?: () => void
   demoLoading?: boolean
@@ -11,6 +12,7 @@ interface AppMenuProps {
 
 export function AppMenu({
   onOpenCategories,
+  onOpenTemplates,
   onLoadDemo,
   demoLoading = false
 }: AppMenuProps): React.JSX.Element {
@@ -62,6 +64,18 @@ export function AppMenu({
         <div className={styles.panel} role="menu" aria-label="Menu principal">
           <button
             ref={itemRef}
+            type="button"
+            className={styles.item}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenTemplates()
+            }}
+          >
+            Semaine type
+          </button>
+
+          <button
             type="button"
             className={styles.item}
             role="menuitem"

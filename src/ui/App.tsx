@@ -5,6 +5,7 @@ import { useUiStore } from '../state/ui'
 import { CategoriesScreen } from './categories/CategoriesScreen'
 import { Icon } from './components/Icon'
 import { WelcomeScreen } from './onboarding/WelcomeScreen'
+import { TemplatesScreen } from './templates/TemplatesScreen'
 import { WeekView } from './week/WeekView'
 import styles from './App.module.css'
 
@@ -76,7 +77,7 @@ function App(): React.JSX.Element {
         <span className={styles.brand}>Planner</span>
       </header>
       <main className={styles.content}>
-        <CategoriesScreen />
+        {screen === 'templates' ? <TemplatesScreen /> : <CategoriesScreen />}
       </main>
     </div>
   )

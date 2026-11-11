@@ -25,6 +25,7 @@
     "dexie": "^4.4.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "rrule": "^2.8.1",
     "zustand": "^5.1.0"
   },
   "devDependencies": {

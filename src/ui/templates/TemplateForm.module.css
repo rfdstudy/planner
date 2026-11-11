@@ -1,0 +1,257 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0 var(--sp-1);
+}
+
+.topRow,
+.scheduleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.grow {
+  flex: 1 1 210px;
+}
+
+.kindField {
+  flex: 0 0 94px;
+}
+
+.categoryField {
+  flex: 0 1 190px;
+}
+
+.timeField {
+  flex: 0 0 92px;
+}
+
+.durationField {
+  flex: 0 0 88px;
+}
+
+.dateField {
+  flex: 1 1 140px;
+}
+
+.label {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.control {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.control:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.control:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.control:disabled {
+  opacity: 0.55;
+}
+
+.control[type='number'] {
+  appearance: textfield;
+}
+
+.control[type='number']::-webkit-inner-spin-button,
+.control[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.suffixField {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.suffixField .control {
+  padding-right: 30px;
+}
+
+.suffix {
+  position: absolute;
+  top: 50%;
+  right: var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.durationHint {
+  flex: 0 0 auto;
+  padding-bottom: 9px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.categoryControl {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.categoryDot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--category-color, var(--line-strong));
+}
+
+.categoryDotEmpty {
+  visibility: hidden;
+}
+
+.categorySelect {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.daysField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dayOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dayOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 28px;
+  padding: 0 var(--sp-2);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.dayOption:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+
+.dayOption:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dayOption input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dayOptionActive {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.dayOptionActive:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.error {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+
+.primaryButton {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: opacity var(--t-fast);
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+}
+
+.ghostButton {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition: background-color var(--t-fast);
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.ghostButton:disabled {
+  opacity: 0.5;
+}

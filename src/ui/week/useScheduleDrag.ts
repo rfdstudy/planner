@@ -64,6 +64,10 @@ interface UseScheduleDragOptions {
   weekDays: readonly LocalDate[]
   daysData: ReadonlyMap<LocalDate, WeekDayData>
   onError: (message: string) => void
+  /** Un bloc de semaine type demande un choix « cette fois / toutes les semaines ». */
+  onTemplateMove: (entry: PlacedEntry, target: DragTarget) => void
+  onTemplateResize: (entry: PlacedEntry, durationMin: number) => void
+  onTemplateDelete: (entry: PlacedEntry) => void
 }
 
 interface PendingGesture {
@@ -118,7 +122,10 @@ export function useScheduleDrag({
   daysRef,
   weekDays,
   daysData,
-  onError
+  onError,
+  onTemplateMove,
+  onTemplateResize,
+  onTemplateDelete
 }: UseScheduleDragOptions): ScheduleDragController {
   const [session, setSession] = useState<ScheduleDragSession | null>(null)
   const [preview, setPreview] = useState<ScheduleDragPreview | null>(null)
@@ -133,6 +140,9 @@ export function useScheduleDrag({
   const weekDaysRef = useRef(weekDays)
   const daysDataRef = useRef(daysData)
   const onErrorRef = useRef(onError)
+  const onTemplateMoveRef = useRef(onTemplateMove)
+  const onTemplateResizeRef = useRef(onTemplateResize)
+  const onTemplateDeleteRef = useRef(onTemplateDelete)
 
   useEffect(() => {
     weekDaysRef.current = weekDays
@@ -145,6 +155,18 @@ export function useScheduleDrag({
   useEffect(() => {
     onErrorRef.current = onError
   }, [onError])
+
+  useEffect(() => {
+    onTemplateMoveRef.current = onTemplateMove
+  }, [onTemplateMove])
+
+  useEffect(() => {
+    onTemplateResizeRef.current = onTemplateResize
+  }, [onTemplateResize])
+
+  useEffect(() => {
+    onTemplateDeleteRef.current = onTemplateDelete
+  }, [onTemplateDelete])
 
   const stopLoop = useCallback((): void => {
     if (rafRef.current !== null) {
@@ -615,42 +637,62 @@ export function useScheduleDrag({
         removeListeners()
 
         if (active.kind === 'move' && active.sourceEntry !== null) {
-          const blockId = active.sourceEntry.block.id
+          const sourceEntry = active.sourceEntry
 
-          if (active.overInbox) {
-            await commit(
-              () => repositories.planning.removeBlock(blockId),
-              'Le bloc n’a pas pu être retiré.'
-            )
-          } else if (
-            active.target !== null &&
-            (active.target.date !== active.sourceDate ||
-              active.target.startMin !== active.sourceStartMin)
-          ) {
-            const target = active.target
+          if (sourceEntry.template !== null) {
+            if (active.overInbox) {
+              onTemplateDeleteRef.current(sourceEntry)
+            } else if (
+              active.target !== null &&
+              (active.target.date !== active.sourceDate ||
+                active.target.startMin !== active.sourceStartMin)
+            ) {
+              onTemplateMoveRef.current(sourceEntry, active.target)
+            }
+          } else {
+            const blockId = sourceEntry.block.id
 
-            await commit(
-              () =>
-                repositories.planning.moveBlock({
-                  blockId,
-                  date: target.date,
-                  startMin: target.startMin
-                }),
-              'Le bloc n’a pas pu être déplacé.'
-            )
+            if (active.overInbox) {
+              await commit(
+                () => repositories.planning.removeBlock(blockId),
+                'Le bloc n’a pas pu être retiré.'
+              )
+            } else if (
+              active.target !== null &&
+              (active.target.date !== active.sourceDate ||
+                active.target.startMin !== active.sourceStartMin)
+            ) {
+              const target = active.target
+
+              await commit(
+                () =>
+                  repositories.planning.moveBlock({
+                    blockId,
+                    date: target.date,
+                    startMin: target.startMin
+                  }),
+                'Le bloc n’a pas pu être déplacé.'
+              )
+            }
           }
         } else if (active.kind === 'resize' && active.sourceEntry !== null) {
           if (active.target !== null && active.target.durationMin !== active.sourceDurationMin) {
-            const durationMin = active.target.durationMin
-            const blockId = active.sourceEntry.block.id
+            const sourceEntry = active.sourceEntry
 
-            const succeeded = await commit(
-              () => repositories.planning.resizeBlock({ blockId, durationMin }),
-              'Le bloc n’a pas pu être redimensionné.'
-            )
+            if (sourceEntry.template !== null) {
+              onTemplateResizeRef.current(sourceEntry, active.target.durationMin)
+            } else {
+              const durationMin = active.target.durationMin
+              const blockId = sourceEntry.block.id
 
-            if (succeeded) {
-              active.finalHeight = `${durationMin * active.pixelsPerMinute}px`
+              const succeeded = await commit(
+                () => repositories.planning.resizeBlock({ blockId, durationMin }),
+                'Le bloc n’a pas pu être redimensionné.'
+              )
+
+              if (succeeded) {
+                active.finalHeight = `${durationMin * active.pixelsPerMinute}px`
+              }
             }
           }
         } else if (active.kind === 'create' && active.task !== null && active.target !== null) {

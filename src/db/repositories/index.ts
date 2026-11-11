@@ -7,6 +7,7 @@ import { ElementRepository } from './elements'
 import { ItemRepository } from './items'
 import { OverrideRepository } from './overrides'
 import { PlanningRepository } from './planning'
+import { RecurrenceRepository } from './recurrence'
 import { SettingRepository } from './settings'
 import { TemplateRepository } from './templates'
 
@@ -19,6 +20,7 @@ export interface Repositories {
   planning: PlanningRepository
   templates: TemplateRepository
   overrides: OverrideRepository
+  recurrence: RecurrenceRepository
   settings: SettingRepository
   history: UndoHistory
 }
@@ -37,6 +39,7 @@ export function createRepositories(
     planning: new PlanningRepository(database, history),
     templates: new TemplateRepository(database.templates),
     overrides: new OverrideRepository(database.overrides),
+    recurrence: new RecurrenceRepository(database),
     settings: new SettingRepository(database.settings),
     history
   }
