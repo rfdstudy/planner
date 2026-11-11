@@ -49,7 +49,7 @@
   color: var(--text);
 }
 
-.weekLabel {
+.periodLabel {
   overflow: hidden;
   color: var(--text);
   font-size: var(--fs-xl);
@@ -130,7 +130,7 @@
   color: var(--text-3);
   font-size: var(--fs-sm);
   text-align: left;
-  cursor: default;
+  cursor: pointer;
 }
 
 .searchPlaceholder {
@@ -162,7 +162,7 @@
     width: 170px;
   }
 
-  .weekLabel {
+  .periodLabel {
     font-size: var(--fs-lg);
   }
 }

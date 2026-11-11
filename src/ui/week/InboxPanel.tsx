@@ -9,7 +9,7 @@ import { repositories } from '../../db/repositories'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
 import { ElementEditor } from './ElementEditor'
-import type { FloatingAnchor } from './weekTypes'
+import type { FloatingAnchor } from './scheduleTypes'
 import styles from './InboxPanel.module.css'
 
 interface InboxPanelProps {

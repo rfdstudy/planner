@@ -10,7 +10,7 @@ import {
 import type { Category, CategoryGroup, ItemKind } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
-import type { FloatingAnchor } from './weekTypes'
+import type { FloatingAnchor } from './scheduleTypes'
 import styles from './ElementEditor.module.css'
 
 const PANEL_MARGIN = 12

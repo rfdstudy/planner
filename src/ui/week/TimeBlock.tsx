@@ -5,7 +5,7 @@ import { getBlockContentMode, showsBlockCategory } from '../../core/schedule'
 import { MINUTES_PER_DAY, formatDaysUntil, minutesToTime } from '../../core/time'
 import type { LocalDate } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
-import type { FloatingAnchor, PlacedEntry } from './weekTypes'
+import type { FloatingAnchor, PlacedEntry } from './scheduleTypes'
 import styles from './TimeBlock.module.css'
 
 export type TimeBlockDragMode = 'move' | 'resize'

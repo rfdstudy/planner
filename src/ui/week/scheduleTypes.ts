@@ -8,7 +8,7 @@ export interface FloatingAnchor {
 }
 
 /** Bloc accompagné de son élément et de sa catégorie éventuelle. */
-export interface WeekEntry {
+export interface ScheduleEntry {
   block: Block
   item: Item
   category: Category | null
@@ -17,19 +17,20 @@ export interface WeekEntry {
 }
 
 /** Bloc horaire avec sa position calculée dans la colonne du jour. */
-export interface PlacedEntry extends WeekEntry {
+export interface PlacedEntry extends ScheduleEntry {
   placement: BlockPlacement<Block>
 }
 
-export interface WeekDayData {
+export interface ScheduleDayData {
   date: LocalDate
   timed: PlacedEntry[]
-  exams: WeekEntry[]
+  exams: ScheduleEntry[]
 }
 
-export interface WeekData {
-  weekStart: LocalDate
-  days: WeekDayData[]
+export interface ScheduleData {
+  rangeStart: LocalDate
+  rangeEnd: LocalDate
+  days: ScheduleDayData[]
   categories: Category[]
   categoryGroups: CategoryGroup[]
 }

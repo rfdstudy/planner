@@ -17,6 +17,9 @@
   --accent: #1f2328;
   --accent-soft: rgba(31, 35, 40, 0.06);
 
+  /* Voile derrière la palette de commandes */
+  --overlay: rgba(31, 35, 40, 0.18);
+
   /* Alerte : réservée aux épreuves */
   --alert: #d6455d;
   --alert-soft: #fdecef;

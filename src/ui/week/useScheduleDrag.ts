@@ -14,7 +14,7 @@ import { getFreeSlots, type FreeSlot } from '../../core/schedule'
 import { MINUTES_PER_DAY, SNAP_MINUTES } from '../../core/time'
 import type { LocalDate } from '../../core/types'
 import { repositories } from '../../db/repositories'
-import type { PlacedEntry, WeekDayData } from './weekTypes'
+import type { PlacedEntry, ScheduleDayData } from './scheduleTypes'
 
 /** Bande, en pixels, dans laquelle le défilement automatique s'active. */
 const AUTO_SCROLL_EDGE_PX = 56
@@ -61,8 +61,8 @@ export interface ScheduleDragController {
 interface UseScheduleDragOptions {
   scrollRef: RefObject<HTMLDivElement>
   daysRef: RefObject<HTMLDivElement>
-  weekDays: readonly LocalDate[]
-  daysData: ReadonlyMap<LocalDate, WeekDayData>
+  days: readonly LocalDate[]
+  daysData: ReadonlyMap<LocalDate, ScheduleDayData>
   onError: (message: string) => void
   /** Un bloc de semaine type demande un choix « cette fois / toutes les semaines ». */
   onTemplateMove: (entry: PlacedEntry, target: DragTarget) => void
@@ -120,7 +120,7 @@ interface ActiveGesture extends PendingGesture {
 export function useScheduleDrag({
   scrollRef,
   daysRef,
-  weekDays,
+  days: daysProp,
   daysData,
   onError,
   onTemplateMove,
@@ -137,7 +137,7 @@ export function useScheduleDrag({
   const suppressClickRef = useRef(false)
   const suppressTimerRef = useRef<number | null>(null)
 
-  const weekDaysRef = useRef(weekDays)
+  const scheduleDaysRef = useRef(daysProp)
   const daysDataRef = useRef(daysData)
   const onErrorRef = useRef(onError)
   const onTemplateMoveRef = useRef(onTemplateMove)
@@ -145,8 +145,8 @@ export function useScheduleDrag({
   const onTemplateDeleteRef = useRef(onTemplateDelete)
 
   useEffect(() => {
-    weekDaysRef.current = weekDays
-  }, [weekDays])
+    scheduleDaysRef.current = daysProp
+  }, [daysProp])
 
   useEffect(() => {
     daysDataRef.current = daysData
@@ -522,9 +522,9 @@ export function useScheduleDrag({
         }
 
         const dayElements = Array.from(daysEl.children) as HTMLElement[]
-        const days = weekDaysRef.current
+        const dayList = scheduleDaysRef.current
 
-        if (dayElements.length === 0 || dayElements.length !== days.length) {
+        if (dayElements.length === 0 || dayElements.length !== dayList.length) {
           teardown()
           return
         }
@@ -546,7 +546,7 @@ export function useScheduleDrag({
         const excludedBlockId = pending.sourceEntry?.block.id ?? null
         const freeSlotsByDate = new Map<LocalDate, FreeSlot[]>()
 
-        for (const date of days) {
+        for (const date of dayList) {
           const blocks = (daysDataRef.current.get(date)?.timed ?? [])
             .map((dayEntry) => dayEntry.block)
             .filter((block) => block.id !== excludedBlockId)
@@ -568,7 +568,7 @@ export function useScheduleDrag({
           gridTop0: firstRect.top,
           pixelsPerMinute: firstRect.height / MINUTES_PER_DAY,
           columns,
-          days: [...days],
+          days: [...dayList],
           inboxLeft,
           freeSlotsByDate,
           blockElement,

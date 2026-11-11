@@ -4,6 +4,7 @@ import {
   addDays,
   clampMinutes,
   differenceInCalendarDays,
+  formatDayLabel,
   formatDaysUntil,
   formatDurationMinutes,
   formatLocalDate,
@@ -108,6 +109,10 @@ describe('libellés de calendrier', () => {
   it('abrège les jours sans point final', () => {
     expect(formatWeekdayShort('2026-11-09')).toBe('lun')
     expect(formatWeekdayShort('2026-11-15')).toBe('dim')
+  })
+
+  it('écrit la date complète de la vue Jour', () => {
+    expect(formatDayLabel('2026-11-12')).toBe('jeudi 12 novembre 2026')
   })
 
   it('compte les jours calendaires dans les deux sens', () => {

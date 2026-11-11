@@ -17,6 +17,12 @@ const LONG_DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
 })
 const MONTH_LONG_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'long' })
 const MONTH_SHORT_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'short' })
+const DAY_LABEL_FORMAT = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric'
+})
 
 function pad2(value: number): string {
   return String(value).padStart(2, '0')
@@ -126,6 +132,11 @@ export function formatWeekdayShort(date: LocalDate): string {
 /** Date longue française, sans année (`lundi 9 novembre`). */
 export function formatLongDate(date: LocalDate): string {
   return LONG_DATE_FORMAT.format(parseLocalDate(date))
+}
+
+/** Date complète de la vue Jour (`mercredi 12 novembre 2026`). */
+export function formatDayLabel(date: LocalDate): string {
+  return DAY_LABEL_FORMAT.format(parseLocalDate(date))
 }
 
 /**

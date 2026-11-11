@@ -1,10 +1,67 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { writeFile } from 'fs/promises'
 import { join } from 'path'
+import type { IpcMainInvokeEvent } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import type {
+  SaveTextFileFilter,
+  SaveTextFileRequest,
+  SaveTextFileResult
+} from '../src/platform/types'
 
 const APP_ID = 'com.planner.app'
+const SAVE_TEXT_FILE_CHANNEL = 'planner:save-text-file'
 
 let mainWindow: BrowserWindow | null = null
+
+function readFilters(value: unknown): SaveTextFileFilter[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const filters = value.filter(
+    (filter): filter is SaveTextFileFilter =>
+      typeof filter === 'object' &&
+      filter !== null &&
+      typeof (filter as SaveTextFileFilter).name === 'string' &&
+      Array.isArray((filter as SaveTextFileFilter).extensions) &&
+      (filter as SaveTextFileFilter).extensions.every((extension) => typeof extension === 'string')
+  )
+
+  return filters.length === 0 ? undefined : filters
+}
+
+function isSaveTextFileRequest(value: unknown): value is SaveTextFileRequest {
+  if (typeof value !== 'object' || value === null) return false
+
+  const candidate = value as Partial<SaveTextFileRequest>
+  return typeof candidate.fileName === 'string' && typeof candidate.content === 'string'
+}
+
+async function handleSaveTextFile(
+  event: IpcMainInvokeEvent,
+  value: unknown
+): Promise<SaveTextFileResult> {
+  if (!isSaveTextFileRequest(value)) {
+    throw new Error('Demande d’enregistrement invalide.')
+  }
+
+  const owner = BrowserWindow.fromWebContents(event.sender)
+  const options = {
+    title: 'Exporter la sauvegarde',
+    defaultPath: join(app.getPath('documents'), value.fileName),
+    filters: readFilters(value.filters)
+  }
+  const result =
+    owner === null
+      ? await dialog.showSaveDialog(options)
+      : await dialog.showSaveDialog(owner, options)
+
+  if (result.canceled || result.filePath === undefined) {
+    return { saved: false }
+  }
+
+  await writeFile(result.filePath, value.content, 'utf8')
+  return { saved: true, filePath: result.filePath }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -67,6 +124,8 @@ if (!hasSingleInstanceLock) {
 
   void app.whenReady().then(() => {
     electronApp.setAppUserModelId(APP_ID)
+
+    ipcMain.handle(SAVE_TEXT_FILE_CHANNEL, handleSaveTextFile)
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
