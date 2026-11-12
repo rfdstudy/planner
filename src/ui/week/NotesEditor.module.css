@@ -1,0 +1,154 @@
+.shell {
+  position: relative;
+  min-height: 56px;
+  padding: 6px var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  cursor: text;
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.shell:hover:not(.disabled) {
+  background: var(--bg-hover);
+}
+
+.shell:focus-within {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.prose {
+  min-height: 42px;
+  outline: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.prose:focus,
+.prose:focus-visible {
+  outline: none;
+}
+
+.prose p {
+  margin: 0;
+}
+
+.prose ul[data-type='taskList'] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * La vue de nœud de TaskItem rend « li > label + div » : le li n'a pas
+ * d'attribut data-type, d'où le ciblage par la liste. Le flex garde la case
+ * et le texte sur la même ligne, avec un retrait suspendu pour les retours.
+ */
+.prose ul[data-type='taskList'] > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+}
+
+.prose ul[data-type='taskList'] > li > label {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 1.45em;
+  cursor: pointer;
+}
+
+.prose ul[data-type='taskList'] > li > label input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.prose ul[data-type='taskList'] > li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prose ul[data-type='taskList'] > li > div p {
+  margin: 0;
+}
+
+.prose ul[data-type='taskList'] > li[data-checked='true'] > div {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.disabled .prose ul[data-type='taskList'] > li > label {
+  cursor: default;
+}
+
+.disabled .prose ul[data-type='taskList'] > li > label input {
+  cursor: default;
+}
+
+.placeholder {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--sp-2) + 1px);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.slashMenu {
+  position: fixed;
+  z-index: 70;
+  min-width: 190px;
+  max-width: 240px;
+  padding: var(--sp-1);
+  border-radius: var(--radius-ctl);
+  background: var(--bg);
+  box-shadow: var(--shadow-float);
+}
+
+.slashOption {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 6px var(--sp-2);
+  border-radius: var(--radius-block);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.slashOption:hover,
+.slashOption[aria-selected='true'] {
+  background: var(--bg-hover);
+}
+
+.slashHint {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.slashEmpty {
+  display: block;
+  padding: 6px var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}

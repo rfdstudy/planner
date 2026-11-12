@@ -7,9 +7,11 @@ import {
   type TaskDraft,
   type TaskDraftValues
 } from '../../core/elementEditor'
+import { notesTaskProgress } from '../../core/notes'
 import type { Category, CategoryGroup, ItemKind } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
+import { NotesEditor } from './NotesEditor'
 import type { FloatingAnchor } from './scheduleTypes'
 import styles from './ElementEditor.module.css'
 
@@ -85,6 +87,8 @@ export function ElementEditor({
     () => categories.find((category) => category.id === draft.categoryId) ?? null,
     [categories, draft.categoryId]
   )
+
+  const notesProgress = useMemo(() => notesTaskProgress(draft.notes), [draft.notes])
 
   const categorySections = useMemo<CategorySection[]>(() => {
     const active = categories.filter((category) => category.archivedAt === null)
@@ -511,19 +515,24 @@ export function ElementEditor({
           )}
 
           {!recurring && (
-            <label className={styles.field}>
-              <span className={styles.label}>Notes</span>
-              <textarea
-                className={`${styles.control} ${styles.textarea}`}
-                rows={2}
+            <div className={styles.field}>
+              <span className={styles.labelRow}>
+                <span className={styles.label}>Notes</span>
+                {notesProgress.total > 0 && (
+                  <span
+                    className={styles.notesProgress}
+                    aria-label={`${notesProgress.checked} cases cochées sur ${notesProgress.total}`}
+                  >
+                    {notesProgress.checked}/{notesProgress.total}
+                  </span>
+                )}
+              </span>
+              <NotesEditor
                 value={draft.notes}
-                placeholder="Notes"
-                aria-label="Notes"
-                maxLength={4000}
                 disabled={busy}
-                onChange={(event) => updateCommon({ notes: event.target.value })}
+                onChange={(notes) => updateCommon({ notes })}
               />
-            </label>
+            </div>
           )}
 
           {error !== null && (

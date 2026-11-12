@@ -87,6 +87,13 @@
   gap: 3px;
 }
 
+.labelRow {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .label {
   overflow: hidden;
   color: var(--text-3);
@@ -94,6 +101,14 @@
   line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.notesProgress {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .row {
@@ -160,14 +175,6 @@
 .control[type='number']::-webkit-outer-spin-button {
   margin: 0;
   appearance: none;
-}
-
-.textarea {
-  height: auto;
-  min-height: 56px;
-  padding: 6px var(--sp-2);
-  line-height: 1.4;
-  resize: none;
 }
 
 .suffixField {
