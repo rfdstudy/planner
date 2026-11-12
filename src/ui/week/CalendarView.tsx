@@ -11,7 +11,7 @@ import {
   fallbackItemType,
   firstNonTaskType,
   firstTaskType,
-  itemTypeAccentColor,
+  firstTopLineType,
   sortActiveItemTypes
 } from '../../core/itemTypes'
 import {
@@ -19,11 +19,10 @@ import {
   getRecurrenceKind,
   type TemplateOccurrence
 } from '../../core/recurrence'
-import { layoutBlocks } from '../../core/schedule'
+import { blockOccursOn, layoutBlocks, layoutTopLineBands } from '../../core/schedule'
 import {
   MINUTES_PER_DAY,
   formatDayLabel,
-  formatDaysUntil,
   formatDurationMinutes,
   formatLongDate,
   formatWeekdayShort,
@@ -55,13 +54,15 @@ import { InboxPanel } from './InboxPanel'
 import { RecurrenceScopeDialog } from './RecurrenceScopeDialog'
 import { TimeBlock } from './TimeBlock'
 import { CalendarTopBar } from './CalendarTopBar'
+import { TopLineBands } from './TopLineBands'
 import { useScheduleDrag } from './useScheduleDrag'
 import type {
   FloatingAnchor,
   PlacedEntry,
   ScheduleData,
   ScheduleDayData,
-  ScheduleEntry
+  ScheduleEntry,
+  TopLineBandEntry
 } from './scheduleTypes'
 import styles from './CalendarView.module.css'
 
@@ -138,6 +139,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const [editor, setEditor] = useState<ElementEditorSession | null>(null)
   const [scopeRequest, setScopeRequest] = useState<RecurrenceScopeRequest | null>(null)
   const [deletedTaskToast, setDeletedTaskToast] = useState<DeletedTaskToast | null>(null)
+  const [bandGestureActive, setBandGestureActive] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -184,7 +186,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
   const today = todayLocalDate(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const hasTopLineRow = days.some((date) => (daysData.get(date)?.topLine.length ?? 0) > 0)
+  const topLineType = useMemo(() => firstTopLineType(itemTypes), [itemTypes])
+  const hasTopLineRow = topLineType !== null || (data?.topLineBands.length ?? 0) > 0
   const statusMessage = loadError
     ? 'La période n’a pas pu être chargée.'
     : demoError !== null
@@ -198,7 +201,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     const subscription = liveQuery(async () => {
       const [blocks, items, itemTypes, categories, categoryGroups, templates, overrides] =
         await Promise.all([
-          repositories.blocks.listBetween(start, end),
+          repositories.blocks.listOverlapping(start, end),
           repositories.items.list(),
           repositories.itemTypes.list(),
           repositories.categories.list(),
@@ -288,6 +291,29 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     [days, itemTypes, preferences.defaultTaskDurationMin, preferences.dragStepMin]
   )
 
+  const openTopLineCreate = useCallback(
+    (date: LocalDate, endDate: LocalDate | null, anchor: FloatingAnchor): void => {
+      const type = firstTopLineType(itemTypes)
+
+      if (type === null) {
+        setActionError('Créez d’abord un type placé sur la ligne du haut.')
+        return
+      }
+
+      setActionError(null)
+      setScopeRequest(null)
+      setEditor({
+        mode: 'create',
+        anchor,
+        draft: createNewElementDraft(
+          { date, startMin: 0, type, endDate },
+          { taskDurationMin: preferences.defaultTaskDurationMin }
+        )
+      })
+    },
+    [itemTypes, preferences.defaultTaskDurationMin]
+  )
+
   const handleToday = useCallback((): void => {
     const reference = new Date()
     const container = scrollRef.current
@@ -315,7 +341,15 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.repeat) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
-      if (paletteOpen || editor !== null || scopeRequest !== null || drag.session !== null) return
+      if (
+        paletteOpen ||
+        editor !== null ||
+        scopeRequest !== null ||
+        drag.session !== null ||
+        bandGestureActive
+      ) {
+        return
+      }
       if (isTextEntryTarget(event.target)) return
 
       switch (event.key) {
@@ -362,6 +396,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [
+    bandGestureActive,
     drag.session,
     editor,
     handleToday,
@@ -437,6 +472,32 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     }
   }, [])
 
+  const handleBandMove = useCallback(
+    async (entry: ScheduleEntry, date: LocalDate, endDate: LocalDate | null): Promise<void> => {
+      setActionError(null)
+
+      try {
+        await repositories.planning.moveBlockRange({ blockId: entry.block.id, date, endDate })
+      } catch {
+        setActionError('L’élément n’a pas pu être déplacé.')
+      }
+    },
+    []
+  )
+
+  const handleBandResize = useCallback(
+    async (entry: ScheduleEntry, date: LocalDate, endDate: LocalDate | null): Promise<void> => {
+      setActionError(null)
+
+      try {
+        await repositories.planning.resizeBlockRange({ blockId: entry.block.id, date, endDate })
+      } catch {
+        setActionError('La période n’a pas pu être modifiée.')
+      }
+    },
+    []
+  )
+
   const handleUndo = useCallback(async (target?: UndoAction): Promise<void> => {
     try {
       const action = await repositories.history.undo(target)
@@ -482,7 +543,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         editor !== null ||
         drag.session !== null ||
         scopeRequest !== null ||
-        paletteOpen
+        paletteOpen ||
+        bandGestureActive
       ) {
         return
       }
@@ -493,7 +555,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [drag.session, editor, handleUndo, paletteOpen, scopeRequest])
+  }, [bandGestureActive, drag.session, editor, handleUndo, paletteOpen, scopeRequest])
 
   async function handleEditorSubmit(values: ElementDraftValues): Promise<void> {
     if (editor === null) return
@@ -511,7 +573,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         block: {
           date: values.date,
           startMin: values.startMin,
-          durationMin: values.durationMin
+          durationMin: values.durationMin,
+          endDate: values.endDate
         }
       })
 
@@ -542,7 +605,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         block: {
           date: values.date,
           startMin: values.startMin,
-          durationMin: values.durationMin
+          durationMin: values.durationMin,
+          endDate: values.endDate
         }
       })
 
@@ -743,44 +807,22 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
               })}
             </div>
 
-            {hasTopLineRow && (
+            {hasTopLineRow && data !== null && (
               <div className={styles.topLineRow}>
                 <div className={styles.hourSpacer} />
-                {days.map((date) => (
-                  <div className={styles.topLineCell} key={date}>
-                    {(daysData.get(date)?.topLine ?? []).map((entry) => {
-                      const type = entry.type ?? fallbackItemType(entry.item.typeId)
-                      const accent = itemTypeAccentColor(type, entry.category?.color ?? null)
-
-                      return (
-                        <button
-                          type="button"
-                          className={styles.topLinePill}
-                          data-style={type.style}
-                          data-colored={accent !== null ? '' : undefined}
-                          key={entry.block.id}
-                          title={entry.item.title}
-                          style={
-                            type.style === 'category' && entry.category !== null
-                              ? categoryColorStyle(entry.category.color)
-                              : accent === null
-                                ? undefined
-                                : categoryColorStyle(accent)
-                          }
-                          onClick={(event) =>
-                            openEntry(entry, { x: event.clientX, y: event.clientY })
-                          }
-                        >
-                          <span className={styles.topLinePillDot} aria-hidden="true" />
-                          <span className={styles.topLinePillTitle}>
-                            {entry.item.title}
-                            {type.countdown && ` · ${formatDaysUntil(entry.block.date, today)}`}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ))}
+                <TopLineBands
+                  key={`${rangeStart}-${rangeEnd}`}
+                  days={days}
+                  bands={data.topLineBands}
+                  rowCount={data.topLineRowCount}
+                  maxRows={mode === 'day' ? Number.POSITIVE_INFINITY : undefined}
+                  today={today}
+                  onCreate={openTopLineCreate}
+                  onOpen={openEntry}
+                  onMove={handleBandMove}
+                  onResize={handleBandResize}
+                  onGestureActiveChange={setBandGestureActive}
+                />
               </div>
             )}
           </div>
@@ -982,7 +1024,8 @@ function sameOccurrenceValues(entry: ScheduleEntry, values: ElementDraftValues):
     values.categoryId === entry.item.categoryId &&
     values.date === entry.block.date &&
     values.startMin === entry.block.startMin &&
-    values.durationMin === entry.block.durationMin
+    values.durationMin === entry.block.durationMin &&
+    (values.endDate ?? null) === (entry.block.endDate ?? null)
   )
 }
 
@@ -1049,6 +1092,7 @@ function virtualEntry(
     date: occurrence.date,
     startMin: type.placement === 'topLine' ? null : occurrence.startMin,
     durationMin: occurrence.durationMin,
+    endDate: null,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
     deletedAt: null
@@ -1081,6 +1125,72 @@ function buildScheduleData(
   const rangeStart = days[0]
   const rangeEnd = days.at(-1) ?? rangeStart
   const occurrences = computeOccurrences(templates, overrides, { start: rangeStart, end: rangeEnd })
+  const dayData: ScheduleDayData[] = days.map((date) => {
+    const entries: ScheduleEntry[] = []
+
+    for (const block of blocks) {
+      // Un bloc horaire n'existe que le jour de sa date. Un élément sans heure
+      // peut couvrir plusieurs jours et doit apparaître dans chacun d'eux.
+      const occurs = block.startMin === null ? blockOccursOn(block, date) : block.date === date
+
+      if (!occurs) continue
+
+      const item = itemsById.get(block.itemId)
+
+      if (item === undefined) continue
+
+      entries.push({
+        block,
+        item,
+        type: typesById.get(item.typeId) ?? fallbackItemType(item.typeId),
+        category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
+        template: null
+      })
+    }
+
+    for (const occurrence of occurrences) {
+      if (occurrence.date !== date) continue
+
+      const template = templatesById.get(occurrence.templateId)
+
+      if (template === undefined) continue
+
+      entries.push(virtualEntry(occurrence, template, categoriesById, typesById))
+    }
+
+    const topLine = entries
+      .filter((entry) => entry.block.startMin === null)
+      .sort((a, b) => a.item.title.localeCompare(b.item.title, 'fr'))
+    const timedEntries = entries.filter(
+      (entry) => entry.block.startMin !== null && entry.block.durationMin > 0
+    )
+    const entriesByBlockId = new Map(timedEntries.map((entry) => [entry.block.id, entry]))
+    const timed: PlacedEntry[] = layoutBlocks(timedEntries.map((entry) => entry.block)).flatMap(
+      (placement) => {
+        const entry = entriesByBlockId.get(placement.block.id)
+        return entry === undefined ? [] : [{ ...entry, placement }]
+      }
+    )
+
+    return { date, timed, topLine }
+  })
+
+  const bandEntriesById = new Map<string, TopLineBandEntry>()
+
+  for (const day of dayData) {
+    for (const entry of day.topLine) {
+      if (bandEntriesById.has(entry.block.id)) continue
+
+      bandEntriesById.set(entry.block.id, {
+        ...entry,
+        id: entry.block.id,
+        date: entry.block.date,
+        endDate: entry.block.endDate
+      })
+    }
+  }
+
+  const topLineLayout = layoutTopLineBands([...bandEntriesById.values()], days)
 
   return {
     rangeStart,
@@ -1088,50 +1198,8 @@ function buildScheduleData(
     itemTypes: [...itemTypes],
     categories: [...categories],
     categoryGroups: [...categoryGroups],
-    days: days.map((date) => {
-      const entries: ScheduleEntry[] = []
-
-      for (const block of blocks) {
-        if (block.date !== date) continue
-
-        const item = itemsById.get(block.itemId)
-
-        if (item === undefined) continue
-
-        entries.push({
-          block,
-          item,
-          type: typesById.get(item.typeId) ?? fallbackItemType(item.typeId),
-          category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
-          template: null
-        })
-      }
-
-      for (const occurrence of occurrences) {
-        if (occurrence.date !== date) continue
-
-        const template = templatesById.get(occurrence.templateId)
-
-        if (template === undefined) continue
-
-        entries.push(virtualEntry(occurrence, template, categoriesById, typesById))
-      }
-
-      const topLine = entries
-        .filter((entry) => entry.block.startMin === null)
-        .sort((a, b) => a.item.title.localeCompare(b.item.title, 'fr'))
-      const timedEntries = entries.filter(
-        (entry) => entry.block.startMin !== null && entry.block.durationMin > 0
-      )
-      const entriesByBlockId = new Map(timedEntries.map((entry) => [entry.block.id, entry]))
-      const timed: PlacedEntry[] = layoutBlocks(timedEntries.map((entry) => entry.block)).flatMap(
-        (placement) => {
-          const entry = entriesByBlockId.get(placement.block.id)
-          return entry === undefined ? [] : [{ ...entry, placement }]
-        }
-      )
-
-      return { date, timed, topLine }
-    })
+    days: dayData,
+    topLineBands: topLineLayout.bands,
+    topLineRowCount: topLineLayout.rowCount
   }
 }

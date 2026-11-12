@@ -4,6 +4,7 @@ import {
   addDays,
   clampMinutes,
   differenceInCalendarDays,
+  formatCountdown,
   formatDayLabel,
   formatDaysUntil,
   formatDurationMinutes,
@@ -157,6 +158,20 @@ describe('libellés de calendrier', () => {
     expect(formatDaysUntil('2026-11-14', '2026-11-10')).toBe('J-4')
     expect(formatDaysUntil('2026-11-10', '2026-11-10')).toBe("Aujourd'hui")
     expect(formatDaysUntil('2026-11-08', '2026-11-10')).toBe('J+2')
+  })
+
+  it('affiche le compte à rebours depuis le début de la période', () => {
+    expect(formatCountdown('2026-11-14', null, '2026-11-10')).toBe('J-4')
+    expect(formatCountdown('2026-11-10', null, '2026-11-10')).toBe('en cours')
+    expect(formatCountdown('2026-11-08', null, '2026-11-10')).toBe('J+2')
+  })
+
+  it('affiche « en cours » pendant toute la période inclusive', () => {
+    expect(formatCountdown('2026-11-09', '2026-11-14', '2026-11-08')).toBe('J-1')
+    expect(formatCountdown('2026-11-09', '2026-11-14', '2026-11-09')).toBe('en cours')
+    expect(formatCountdown('2026-11-09', '2026-11-14', '2026-11-12')).toBe('en cours')
+    expect(formatCountdown('2026-11-09', '2026-11-14', '2026-11-14')).toBe('en cours')
+    expect(formatCountdown('2026-11-09', '2026-11-14', '2026-11-15')).toBe('J+6')
   })
 })
 

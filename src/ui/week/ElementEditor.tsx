@@ -95,6 +95,17 @@ export function ElementEditor({
     [categories, draft.categoryId]
   )
 
+  const selectedType = useMemo(
+    () =>
+      draft.variant === 'element'
+        ? (itemTypes.find((type) => type.id === draft.typeId) ?? null)
+        : null,
+    [draft, itemTypes]
+  )
+
+  const isTopLineElement =
+    draft.variant === 'element' && draft.fullDay && selectedType?.placement === 'topLine'
+
   const notesProgress = useMemo(() => notesTaskProgress(draft.notes), [draft.notes])
 
   const categorySections = useMemo<CategorySection[]>(() => {
@@ -220,11 +231,17 @@ export function ElementEditor({
     if (type === undefined) return
 
     const fullDay = type.placement === 'topLine'
+    const endDate = fullDay
+      ? draft.endDate !== '' && draft.endDate >= draft.date
+        ? draft.endDate
+        : draft.date
+      : ''
 
     updateDraft({
       typeId: type.id,
       isTask: type.isTask,
       fullDay,
+      endDate,
       time: fullDay ? '' : draft.time === '' ? '08:00' : draft.time,
       estimateMin: type.isTask ? draft.estimateMin : '',
       status: type.isTask ? (draft.status ?? 'todo') : null
@@ -238,6 +255,20 @@ export function ElementEditor({
       fullDay,
       time: fullDay || draft.time !== '' ? draft.time : '08:00'
     })
+  }
+
+  function handleStartDateChange(date: string): void {
+    if (draft.variant !== 'element') return
+
+    const endDate = draft.fullDay
+      ? recurring
+        ? date
+        : draft.endDate !== '' && draft.endDate < date
+          ? date
+          : draft.endDate
+      : draft.endDate
+
+    updateDraft({ date, endDate })
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -449,62 +480,95 @@ export function ElementEditor({
 
           {draft.variant === 'element' && (
             <>
-              <div className={styles.row}>
-                <label className={`${styles.field} ${styles.dateField}`}>
-                  <span className={styles.label}>Date</span>
-                  <input
-                    className={styles.control}
-                    type="date"
-                    value={draft.date}
-                    aria-label="Date"
-                    disabled={busy}
-                    onChange={(event) => updateDraft({ date: event.target.value })}
-                  />
-                </label>
-
-                <label className={`${styles.field} ${styles.timeField}`}>
-                  <span className={styles.label}>Heure</span>
-                  <input
-                    className={styles.control}
-                    type="time"
-                    step={snapStepMin * 60}
-                    value={draft.fullDay ? '' : draft.time}
-                    aria-label="Heure"
-                    disabled={busy || draft.fullDay}
-                    onChange={(event) => updateDraft({ time: event.target.value })}
-                  />
-                </label>
-
-                <label className={`${styles.field} ${styles.durationField}`}>
-                  <span className={styles.label}>Durée</span>
-                  <span className={styles.suffixField}>
+              {isTopLineElement ? (
+                <div className={styles.row}>
+                  <label className={`${styles.field} ${styles.dateField}`}>
+                    <span className={styles.label}>{recurring ? 'Date' : 'Du'}</span>
                     <input
                       className={styles.control}
-                      type="number"
-                      min={1}
-                      max={1440}
-                      step={15}
-                      inputMode="numeric"
-                      value={draft.durationMin}
-                      aria-label="Durée en minutes"
+                      type="date"
+                      value={draft.date}
+                      aria-label={recurring ? 'Date' : 'Date de début'}
                       disabled={busy}
-                      onChange={(event) => updateDraft({ durationMin: event.target.value })}
+                      onChange={(event) => handleStartDateChange(event.target.value)}
                     />
-                    <span className={styles.suffix}>min</span>
-                  </span>
-                </label>
-              </div>
+                  </label>
 
-              {!recurring && (
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={draft.fullDay}
-                    disabled={busy}
-                    onChange={(event) => handleFullDayChange(event.target.checked)}
-                  />
-                  Journée entière (ligne du haut)
-                </label>
+                  {!recurring && (
+                    <label className={`${styles.field} ${styles.dateField}`}>
+                      <span className={styles.label}>Au</span>
+                      <input
+                        className={styles.control}
+                        type="date"
+                        value={draft.endDate}
+                        min={draft.date}
+                        aria-label="Date de fin"
+                        disabled={busy}
+                        onChange={(event) => updateDraft({ endDate: event.target.value })}
+                      />
+                    </label>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className={styles.row}>
+                    <label className={`${styles.field} ${styles.dateField}`}>
+                      <span className={styles.label}>Date</span>
+                      <input
+                        className={styles.control}
+                        type="date"
+                        value={draft.date}
+                        aria-label="Date"
+                        disabled={busy}
+                        onChange={(event) => updateDraft({ date: event.target.value })}
+                      />
+                    </label>
+
+                    <label className={`${styles.field} ${styles.timeField}`}>
+                      <span className={styles.label}>Heure</span>
+                      <input
+                        className={styles.control}
+                        type="time"
+                        step={snapStepMin * 60}
+                        value={draft.fullDay ? '' : draft.time}
+                        aria-label="Heure"
+                        disabled={busy || draft.fullDay}
+                        onChange={(event) => updateDraft({ time: event.target.value })}
+                      />
+                    </label>
+
+                    <label className={`${styles.field} ${styles.durationField}`}>
+                      <span className={styles.label}>Durée</span>
+                      <span className={styles.suffixField}>
+                        <input
+                          className={styles.control}
+                          type="number"
+                          min={1}
+                          max={1440}
+                          step={15}
+                          inputMode="numeric"
+                          value={draft.durationMin}
+                          aria-label="Durée en minutes"
+                          disabled={busy}
+                          onChange={(event) => updateDraft({ durationMin: event.target.value })}
+                        />
+                        <span className={styles.suffix}>min</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {!recurring && (
+                    <label className={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        checked={draft.fullDay}
+                        disabled={busy}
+                        onChange={(event) => handleFullDayChange(event.target.checked)}
+                      />
+                      Journée entière (ligne du haut)
+                    </label>
+                  )}
+                </>
               )}
             </>
           )}

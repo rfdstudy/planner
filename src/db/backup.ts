@@ -183,6 +183,16 @@ function isLegacyItem(value: unknown): value is LegacyItem {
   )
 }
 
+function hasValidBlockEndDate(value: UnknownRecord): boolean {
+  if (value.endDate === undefined || value.endDate === null) return true
+  if (typeof value.endDate !== 'string' || !isLocalDate(value.endDate)) return false
+  if (typeof value.date !== 'string' || !isLocalDate(value.date)) return false
+
+  // Une date de fin n'a de sens que pour un élément sans heure, et elle ne
+  // peut pas précéder le début de la période.
+  return value.startMin === null && value.endDate >= value.date
+}
+
 function isBlock(value: unknown): value is Block {
   return (
     isRecord(value) &&
@@ -192,7 +202,8 @@ function isBlock(value: unknown): value is Block {
     typeof value.date === 'string' &&
     isLocalDate(value.date) &&
     (value.startMin === null || isIntegerBetween(value.startMin, 0, 1439)) &&
-    isIntegerBetween(value.durationMin, 1, 1440)
+    isIntegerBetween(value.durationMin, 1, 1440) &&
+    hasValidBlockEndDate(value)
   )
 }
 
@@ -308,7 +319,10 @@ function readDataV2(value: unknown): BackupData {
     categories: readTable(value.categories, 'catégories', isCategory),
     itemTypes: readTable(value.itemTypes, 'types d’éléments', isItemType),
     items: readTable(value.items, 'éléments', isItemV2),
-    blocks: readTable(value.blocks, 'blocs', isBlock),
+    blocks: readTable(value.blocks, 'blocs', isBlock).map((block) => ({
+      ...block,
+      endDate: block.endDate ?? null
+    })),
     templates: readTable(value.templates, 'modèles', isTemplateV2),
     overrides: readTable(value.overrides, 'exceptions', isOverrideV2).map((override) => ({
       ...override,
@@ -339,7 +353,10 @@ function readDataV1(value: unknown, exportedAt: string): BackupData {
       ...item,
       typeId: defaultItemTypeIdForKind(kind)
     })),
-    blocks: readTable(value.blocks, 'blocs', isBlock),
+    blocks: readTable(value.blocks, 'blocs', isBlock).map((block) => ({
+      ...block,
+      endDate: block.endDate ?? null
+    })),
     templates: legacyTemplates.map(({ kind, ...template }) => ({
       ...template,
       typeId: defaultTemplateTypeIdForKind(kind)

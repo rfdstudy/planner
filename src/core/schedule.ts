@@ -1,4 +1,5 @@
-import { MINUTES_PER_DAY } from './time'
+import { MINUTES_PER_DAY, differenceInCalendarDays, isLocalDate } from './time'
+import type { LocalDate } from './types'
 
 /** Forme minimale d'un bloc pour les calculs de la grille. */
 export interface SchedulableBlock {
@@ -25,6 +26,158 @@ export interface FreeSlot {
   startMin: number
   endMin: number
   durationMin: number
+}
+
+/** Nombre maximal de lignes de bandes affichées dans la ligne du haut. */
+export const MAX_TOP_LINE_ROWS = 3
+
+/** Forme minimale d'un élément à cheval sur plusieurs jours. */
+export interface TopLineBand {
+  id: string
+  date: LocalDate
+  endDate?: LocalDate | null
+}
+
+export interface TopLineBandPlacement<T extends TopLineBand = TopLineBand> {
+  band: T
+  /** Index de la première colonne visible de la semaine. */
+  startIndex: number
+  /** Index de la dernière colonne visible de la semaine, inclus. */
+  endIndex: number
+  /** Numéro de ligne d'empilement, à partir de 0. */
+  row: number
+  /** La bande a commencé avant la période affichée. */
+  clippedStart: boolean
+  /** La bande se termine après la période affichée. */
+  clippedEnd: boolean
+}
+
+export interface TopLineLayout<T extends TopLineBand = TopLineBand> {
+  /** Toutes les bandes, y compris celles masquées au-delà de trois lignes. */
+  bands: TopLineBandPlacement<T>[]
+  /** Nombre de lignes nécessaires pour tout afficher. */
+  rowCount: number
+  /** Nombre de lignes réellement affichées, plafonné à `maxRows`. */
+  visibleRowCount: number
+  /** Nombre d'éléments masqués derrière le bouton « +N ». */
+  hiddenCount: number
+}
+
+/**
+ * Dernier jour inclus d'un bloc. Les blocs d'un seul jour et les anciennes
+ * données sans `endDate` renvoient simplement leur date de début.
+ */
+export function getBlockEndDate(block: { date: LocalDate; endDate?: LocalDate | null }): LocalDate {
+  return block.endDate ?? block.date
+}
+
+/** Un élément est multi-jours lorsque sa date de fin est postérieure au début. */
+export function isMultiDayBlock(block: { date: LocalDate; endDate?: LocalDate | null }): boolean {
+  return getBlockEndDate(block) > block.date
+}
+
+/** Vrai si le jour demandé appartient à la période inclusive du bloc. */
+export function blockOccursOn(
+  block: { date: LocalDate; endDate?: LocalDate | null },
+  date: LocalDate
+): boolean {
+  return date >= block.date && date <= getBlockEndDate(block)
+}
+
+/**
+ * Normalise une date de fin inclusive. Une date absente ou égale au début
+ * devient `null` : un élément d'un seul jour n'a pas besoin de date de fin.
+ */
+export function normalizeBlockEndDate(
+  date: LocalDate,
+  endDate: LocalDate | null | undefined
+): LocalDate | null {
+  if (!isLocalDate(date)) {
+    throw new RangeError(`Date locale invalide : ${date}`)
+  }
+
+  if (endDate === null || endDate === undefined || endDate.length === 0) {
+    return null
+  }
+
+  if (!isLocalDate(endDate)) {
+    throw new RangeError(`Date locale invalide : ${endDate}`)
+  }
+
+  if (endDate < date) {
+    throw new RangeError('La date de fin doit être égale ou postérieure à la date de début.')
+  }
+
+  return endDate === date ? null : endDate
+}
+
+/**
+ * Empile les bandes qui se chevauchent sur des lignes séparées et les tronque
+ * aux limites de la période affichée. Une bande commence ou finit hors de la
+ * période est marquée comme tronquée, pour afficher un chevron dans la vue.
+ *
+ * Les bandes qui se touchent (l'une finit le mardi, l'autre commence le
+ * mercredi) ne se chevauchent pas et peuvent partager une ligne.
+ */
+export function layoutTopLineBands<T extends TopLineBand>(
+  bands: readonly T[],
+  days: readonly LocalDate[],
+  maxRows: number = MAX_TOP_LINE_ROWS
+): TopLineLayout<T> {
+  if (days.length === 0) {
+    return { bands: [], rowCount: 0, visibleRowCount: 0, hiddenCount: 0 }
+  }
+
+  if (!Number.isInteger(maxRows) || maxRows < 1) {
+    throw new RangeError('Le nombre de lignes de la ligne du haut doit être positif.')
+  }
+
+  const rangeStart = days[0]
+  const rangeEnd = days[days.length - 1]
+  const candidates = bands
+    .map((band) => {
+      const startIndex = Math.max(0, differenceInCalendarDays(rangeStart, band.date))
+      const endIndex = Math.min(
+        days.length - 1,
+        differenceInCalendarDays(rangeStart, getBlockEndDate(band))
+      )
+
+      return {
+        band,
+        startIndex,
+        endIndex,
+        clippedStart: band.date < rangeStart,
+        clippedEnd: getBlockEndDate(band) > rangeEnd
+      }
+    })
+    .filter(({ startIndex, endIndex }) => startIndex <= endIndex)
+    .sort(
+      (a, b) =>
+        a.startIndex - b.startIndex || b.endIndex - a.endIndex || a.band.id.localeCompare(b.band.id)
+    )
+
+  const rowEnds: number[] = []
+  const placements: TopLineBandPlacement<T>[] = []
+
+  for (const candidate of candidates) {
+    let row = rowEnds.findIndex((endIndex) => endIndex < candidate.startIndex)
+
+    if (row === -1) {
+      row = rowEnds.length
+      rowEnds.push(candidate.endIndex)
+    } else {
+      rowEnds[row] = candidate.endIndex
+    }
+
+    placements.push({ ...candidate, row })
+  }
+
+  return {
+    bands: placements,
+    rowCount: rowEnds.length,
+    visibleRowCount: Math.min(rowEnds.length, maxRows),
+    hiddenCount: placements.filter((placement) => placement.row >= maxRows).length
+  }
 }
 
 export interface FreeSlotOptions {

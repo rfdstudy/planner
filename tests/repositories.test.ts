@@ -111,4 +111,21 @@ describe('repositories', () => {
     expect(await repositories.blocks.listByDate('2026-11-12')).toHaveLength(1)
     expect(await repositories.blocks.listByItem(item.id)).toHaveLength(2)
   })
+
+  it('retrouve les blocs multi-jours qui chevauchent une plage', async () => {
+    const item = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Vacances'
+    })
+    const block = await repositories.blocks.create({
+      itemId: item.id,
+      date: '2026-11-08',
+      startMin: null,
+      durationMin: 60,
+      endDate: '2026-11-12'
+    })
+
+    expect(await repositories.blocks.listBetween('2026-11-10', '2026-11-14')).toEqual([])
+    expect(await repositories.blocks.listOverlapping('2026-11-10', '2026-11-14')).toEqual([block])
+  })
 })

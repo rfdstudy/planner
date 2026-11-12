@@ -1,4 +1,4 @@
-import type { BlockPlacement } from '../../core/schedule'
+import type { BlockPlacement, TopLineBandPlacement } from '../../core/schedule'
 import type {
   Block,
   Category,
@@ -30,6 +30,17 @@ export interface PlacedEntry extends ScheduleEntry {
   placement: BlockPlacement<Block>
 }
 
+/** Entrée de la ligne du haut, identifiée par son bloc pour l'empilement. */
+export interface TopLineBandEntry extends ScheduleEntry {
+  id: string
+  /** Recopiés depuis le bloc pour le calcul pur des bandes. */
+  date: LocalDate
+  endDate?: LocalDate | null
+}
+
+/** Bande continue calculée sur les colonnes de la période affichée. */
+export type PlacedTopLineBand = TopLineBandPlacement<TopLineBandEntry>
+
 export interface ScheduleDayData {
   date: LocalDate
   timed: PlacedEntry[]
@@ -44,4 +55,8 @@ export interface ScheduleData {
   itemTypes: ItemType[]
   categories: Category[]
   categoryGroups: CategoryGroup[]
+  /** Bandes uniques de la ligne du haut, tous jours confondus. */
+  topLineBands: PlacedTopLineBand[]
+  /** Nombre total de lignes avant application du plafond d'affichage. */
+  topLineRowCount: number
 }

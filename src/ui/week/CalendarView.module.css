@@ -100,75 +100,8 @@
 
 .topLineRow {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   padding-bottom: var(--sp-1);
-}
-
-.topLineCell {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-width: 0;
-  gap: 3px;
-  padding: 0 var(--sp-1);
-  border-left: 1px solid var(--line);
-}
-
-.topLinePill {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  min-width: 0;
-  padding: 0 var(--sp-2);
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--bg-subtle);
-  color: var(--text);
-  font-size: var(--fs-xs);
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--t-fast);
-}
-
-.topLinePill[data-style='alert'] {
-  background: var(--alert-soft);
-}
-
-.topLinePill[data-style='alert']:hover {
-  background: color-mix(in srgb, var(--alert) 9%, var(--alert-soft));
-}
-
-.topLinePill[data-style='free'] {
-  border: 1px dashed var(--line-strong);
-  background: transparent;
-  color: var(--text-3);
-}
-
-.topLinePill[data-colored] {
-  background: color-mix(in srgb, var(--category-color, var(--line-strong)) 9%, var(--bg));
-}
-
-.topLinePill[data-colored]:hover {
-  background: color-mix(in srgb, var(--category-color, var(--line-strong)) 14%, var(--bg));
-}
-
-.topLinePillDot {
-  flex: 0 0 auto;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--category-color, var(--line-strong));
-}
-
-.topLinePill[data-style='alert'] .topLinePillDot {
-  background: var(--alert);
-}
-
-.topLinePillTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .grid {

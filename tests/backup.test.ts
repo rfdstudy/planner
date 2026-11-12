@@ -94,6 +94,37 @@ describe('sauvegarde JSON', () => {
     expect(parseBackup(serializeBackup(backup))).toEqual(backup)
   })
 
+  it('accepte une date de fin absente et refuse une période incohérente', async () => {
+    const item = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Vacances'
+    })
+    await repositories.blocks.create({
+      itemId: item.id,
+      date: '2026-11-12',
+      startMin: null,
+      durationMin: 60,
+      endDate: '2026-11-14'
+    })
+
+    const backup = await createBackup(repositories)
+    const serialized = JSON.parse(serializeBackup(backup)) as {
+      data: { blocks: Array<Record<string, unknown>> }
+    }
+
+    delete serialized.data.blocks[0]?.endDate
+
+    const parsed = parseBackup(JSON.stringify(serialized))
+    expect(parsed.data.blocks[0]?.endDate).toBeNull()
+
+    serialized.data.blocks[0]!.endDate = '2026-11-10'
+    expect(() => parseBackup(JSON.stringify(serialized))).toThrow(/Entrée invalide/)
+
+    serialized.data.blocks[0]!.endDate = '2026-11-14'
+    serialized.data.blocks[0]!.startMin = 540
+    expect(() => parseBackup(JSON.stringify(serialized))).toThrow(/Entrée invalide/)
+  })
+
   it('refuse un JSON invalide, un autre format et une version inconnue', () => {
     expect(() => parseBackup('{')).toThrow(BackupFormatError)
     expect(() => parseBackup('{"format":"autre"}')).toThrow(/pas une sauvegarde Planner/)

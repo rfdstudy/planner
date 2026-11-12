@@ -1,3 +1,4 @@
+import { normalizeBlockEndDate } from '../../core/schedule'
 import { MINUTES_PER_DAY, isLocalDate } from '../../core/time'
 import type { Block, Item, LocalDate } from '../../core/types'
 import type { PlannerDatabase } from '../database'
@@ -15,6 +16,15 @@ export interface MoveBlockInput {
 export interface ResizeBlockInput {
   blockId: string
   durationMin: number
+}
+
+/** Déplacement ou redimensionnement d'une bande de la ligne du haut. */
+export interface UpdateBlockRangeInput {
+  blockId: string
+  /** Premier jour inclus. */
+  date: LocalDate
+  /** Dernier jour inclus, ou `null` pour un élément d'un seul jour. */
+  endDate: LocalDate | null
 }
 
 export interface PlaceTaskInput {
@@ -111,6 +121,24 @@ export class PlanningRepository {
     })
 
     return updated
+  }
+
+  /**
+   * Modifie la période d'un élément de la ligne du haut. La date de fin est
+   * normalisée : une période d'un seul jour conserve `endDate: null`.
+   */
+  async updateBlockRange(input: UpdateBlockRangeInput): Promise<Block> {
+    return this.writeBlockRange(input, 'Modification d’un élément multi-jours')
+  }
+
+  /** Déplace une bande de la ligne du haut en conservant sa durée en jours. */
+  async moveBlockRange(input: UpdateBlockRangeInput): Promise<Block> {
+    return this.writeBlockRange(input, 'Déplacement d’un élément multi-jours')
+  }
+
+  /** Étire ou réduit une bande depuis l'un de ses bords. */
+  async resizeBlockRange(input: UpdateBlockRangeInput): Promise<Block> {
+    return this.writeBlockRange(input, 'Redimensionnement d’un élément multi-jours')
   }
 
   /**
@@ -233,6 +261,56 @@ export class PlanningRepository {
     this.history.push(action)
 
     return { item: deletedItem, blockCount: blocks.length, action }
+  }
+
+  private async writeBlockRange(input: UpdateBlockRangeInput, label: string): Promise<Block> {
+    this.assertDate(input.date)
+
+    const endDate = normalizeBlockEndDate(input.date, input.endDate)
+    const block = await this.requireBlock(input.blockId)
+
+    if (block.startMin !== null) {
+      throw new RangeError('Un élément de la ligne du haut ne peut pas avoir d’heure.')
+    }
+
+    if (endDate !== null) {
+      const item = await this.items.get(block.itemId)
+
+      if (item === undefined) {
+        throw new RecordNotFoundError('Élément', block.itemId)
+      }
+
+      const type = await this.database.itemTypes.get(item.typeId)
+
+      if (type === undefined) {
+        throw new RecordNotFoundError('Type d’élément', item.typeId)
+      }
+
+      if (type.placement !== 'topLine') {
+        throw new RangeError('Une date de fin est réservée aux types de la ligne du haut.')
+      }
+    }
+
+    const previousDate = block.date
+    const previousEndDate = block.endDate ?? null
+
+    if (previousDate === input.date && previousEndDate === endDate) {
+      return block
+    }
+
+    const updated = await this.blocks.update(block.id, { date: input.date, endDate })
+
+    this.history.push({
+      label,
+      undo: async () => {
+        await this.blocks.update(block.id, {
+          date: previousDate,
+          endDate: previousEndDate
+        })
+      }
+    })
+
+    return updated
   }
 
   private async requireBlock(blockId: string): Promise<Block> {

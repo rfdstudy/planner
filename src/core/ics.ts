@@ -1,4 +1,5 @@
 import { computeOccurrences } from './recurrence'
+import { getBlockEndDate } from './schedule'
 import { addDays, MINUTES_PER_DAY } from './time'
 import type { Block, Category, Item, LocalDate, Override, Template } from './types'
 
@@ -183,12 +184,16 @@ export function buildCalendarIcs(input: CalendarExportInput): string {
     const description = itemDescription(item)
 
     if (block.startMin === null) {
+      // En iCalendar, DTEND d'un événement « journée entière » est le
+      // lendemain du dernier jour inclus, jamais le dernier jour lui-même.
+      const endDate = getBlockEndDate(block)
+
       lines.push(
         ...eventLines({
           uid: `${block.id}${TEMPLATE_UID_SUFFIX}`,
           stamp,
           start: formatIcsDate(block.date),
-          end: formatIcsDate(addDays(block.date, 1)),
+          end: formatIcsDate(addDays(endDate, 1)),
           summary: item.title,
           description,
           category,

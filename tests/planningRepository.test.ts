@@ -115,6 +115,107 @@ describe('redimensionnement d’un bloc', () => {
   })
 })
 
+describe('périodes de la ligne du haut', () => {
+  async function createTopLineBlock(
+    date = '2026-11-12',
+    endDate: string | null = '2026-11-14'
+  ): Promise<{ itemId: string; blockId: string }> {
+    const item = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Vacances'
+    })
+
+    const block = await repositories.blocks.create({
+      itemId: item.id,
+      date,
+      startMin: null,
+      durationMin: 60,
+      endDate
+    })
+
+    return { itemId: item.id, blockId: block.id }
+  }
+
+  it('déplace la période puis restaure ses bornes à l’annulation', async () => {
+    const { blockId } = await createTopLineBlock()
+
+    const moved = await repositories.planning.moveBlockRange({
+      blockId,
+      date: '2026-11-13',
+      endDate: '2026-11-16'
+    })
+
+    expect(moved.date).toBe('2026-11-13')
+    expect(moved.endDate).toBe('2026-11-16')
+    expect(repositories.history.size).toBe(1)
+
+    await repositories.history.undo()
+
+    const restored = await repositories.blocks.get(blockId)
+    expect(restored?.date).toBe('2026-11-12')
+    expect(restored?.endDate).toBe('2026-11-14')
+  })
+
+  it('redimensionne la période puis s’annule', async () => {
+    const { blockId } = await createTopLineBlock()
+
+    const resized = await repositories.planning.resizeBlockRange({
+      blockId,
+      date: '2026-11-12',
+      endDate: '2026-11-18'
+    })
+
+    expect(resized.endDate).toBe('2026-11-18')
+
+    await repositories.history.undo()
+
+    expect((await repositories.blocks.get(blockId))?.endDate).toBe('2026-11-14')
+  })
+
+  it('normalise une période réduite à un seul jour', async () => {
+    const { blockId } = await createTopLineBlock()
+
+    const resized = await repositories.planning.resizeBlockRange({
+      blockId,
+      date: '2026-11-12',
+      endDate: '2026-11-12'
+    })
+
+    expect(resized.endDate).toBeNull()
+  })
+
+  it('refuse un bloc horaire ou une fin sur un type de la grille', async () => {
+    const timedItem = await createTask()
+    const timedBlock = await createBlock(timedItem)
+    const fixedItem = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
+      title: 'Déjeuner'
+    })
+    const fixedBlock = await repositories.blocks.create({
+      itemId: fixedItem.id,
+      date: '2026-11-12',
+      startMin: null,
+      durationMin: 60
+    })
+
+    await expect(
+      repositories.planning.moveBlockRange({
+        blockId: timedBlock,
+        date: '2026-11-13',
+        endDate: '2026-11-14'
+      })
+    ).rejects.toBeInstanceOf(RangeError)
+
+    await expect(
+      repositories.planning.resizeBlockRange({
+        blockId: fixedBlock.id,
+        date: '2026-11-12',
+        endDate: '2026-11-14'
+      })
+    ).rejects.toBeInstanceOf(RangeError)
+  })
+})
+
 describe('placement d’une tâche', () => {
   it('crée un bloc et l’annule en supprimant ce bloc', async () => {
     const itemId = await createTask({ estimateMin: 120 })

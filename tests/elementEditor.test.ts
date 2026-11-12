@@ -74,6 +74,7 @@ describe('nouveau bloc sur la grille', () => {
       notes: '',
       categoryId: null,
       date: '2026-11-12',
+      endDate: '',
       time: '14:00',
       fullDay: false,
       durationMin: '60',
@@ -92,6 +93,31 @@ describe('nouveau bloc sur la grille', () => {
     expect(draft.fullDay).toBe(true)
     expect(draft.time).toBe('')
     expect(draft.isTask).toBe(false)
+    expect(draft.endDate).toBe('2026-11-12')
+  })
+
+  it('prépare une bande de plusieurs jours depuis la ligne du haut', () => {
+    const draft = createNewElementDraft({
+      date: '2026-11-12',
+      startMin: 0,
+      type: EXAM_TYPE,
+      endDate: '2026-11-14'
+    })
+
+    expect(draft.fullDay).toBe(true)
+    expect(draft.time).toBe('')
+    expect(draft.endDate).toBe('2026-11-14')
+  })
+
+  it('relit la date de fin d’une période existante', () => {
+    const draft = elementDraftFrom(
+      makeItem({ typeId: EXAM_TYPE.id, status: null, estimateMin: null }),
+      makeBlock({ startMin: null, endDate: '2026-11-15' }),
+      EXAM_TYPE
+    )
+
+    expect(draft.fullDay).toBe(true)
+    expect(draft.endDate).toBe('2026-11-15')
   })
 
   it('relit un élément et son bloc existants', () => {
@@ -105,6 +131,7 @@ describe('nouveau bloc sur la grille', () => {
       notes: 'Chapitre 3',
       categoryId: 'category-1',
       date: '2026-11-12',
+      endDate: '',
       time: '14:00',
       fullDay: false,
       durationMin: '90',
@@ -158,6 +185,7 @@ describe('validation du brouillon', () => {
         notes: 'Fiche 5',
         categoryId: null,
         date: '2026-11-12',
+        endDate: null,
         startMin: 840,
         durationMin: 45,
         estimateMin: 90,
@@ -198,6 +226,77 @@ describe('validation du brouillon', () => {
     )
 
     expect(validation.ok && validation.values.startMin).toBeNull()
+  })
+
+  it('accepte une date de fin inclusive sur la ligne du haut', () => {
+    const validation = validateElementDraft(
+      validDraft({
+        typeId: EXAM_TYPE.id,
+        isTask: false,
+        fullDay: true,
+        time: '',
+        endDate: '2026-11-14',
+        estimateMin: '',
+        status: null
+      })
+    )
+
+    expect(validation.ok && validation.values.endDate).toBe('2026-11-14')
+    expect(validation.ok && validation.values.startMin).toBeNull()
+  })
+
+  it('normalise une date de fin égale au début en élément d’un jour', () => {
+    const validation = validateElementDraft(
+      validDraft({
+        typeId: EXAM_TYPE.id,
+        isTask: false,
+        fullDay: true,
+        time: '',
+        endDate: '2026-11-12',
+        estimateMin: '',
+        status: null
+      })
+    )
+
+    expect(validation.ok && validation.values.endDate).toBeNull()
+  })
+
+  it('refuse une date de fin antérieure au début', () => {
+    expect(
+      validateElementDraft(
+        validDraft({
+          typeId: EXAM_TYPE.id,
+          isTask: false,
+          fullDay: true,
+          time: '',
+          endDate: '2026-11-10',
+          estimateMin: '',
+          status: null
+        })
+      )
+    ).toEqual({
+      ok: false,
+      message: 'La date de fin doit être égale ou postérieure à la date de début.'
+    })
+  })
+
+  it('refuse une date de fin invalide', () => {
+    expect(
+      validateElementDraft(
+        validDraft({
+          typeId: EXAM_TYPE.id,
+          isTask: false,
+          fullDay: true,
+          time: '',
+          endDate: '2026-02-30',
+          estimateMin: '',
+          status: null
+        })
+      )
+    ).toEqual({
+      ok: false,
+      message: 'Choisissez une date de fin valide.'
+    })
   })
 
   it('exige une heure pour un bloc horaire', () => {

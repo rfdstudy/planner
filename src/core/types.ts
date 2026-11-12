@@ -89,6 +89,11 @@ export interface Block extends BaseRecord {
   /** `null` est autorisé pour une épreuve sans heure de début. */
   startMin: number | null
   durationMin: number
+  /**
+   * Dernier jour inclus d'un élément sans heure placé sur la ligne du haut.
+   * `null` (ou absent dans une ancienne sauvegarde) signifie un seul jour.
+   */
+  endDate?: LocalDate | null
 }
 
 export interface Template extends BaseRecord {

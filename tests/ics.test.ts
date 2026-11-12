@@ -127,6 +127,31 @@ describe('export iCalendar', () => {
     expect(ics).toContain('DTEND;VALUE=DATE:20261113\r\n')
   })
 
+  it('exporte un élément multi-jours avec DTEND au lendemain de la fin', () => {
+    const ics = buildCalendarIcs({
+      items: [
+        makeItem({
+          typeId: DEFAULT_ITEM_TYPE_IDS.event,
+          title: 'Vacances',
+          categoryId: null
+        })
+      ],
+      blocks: [
+        makeBlock({
+          startMin: null,
+          date: '2026-11-12',
+          endDate: '2026-11-14'
+        })
+      ],
+      templates: [],
+      overrides: [],
+      categories: []
+    })
+
+    expect(ics).toContain('DTSTART;VALUE=DATE:20261112\r\n')
+    expect(ics).toContain('DTEND;VALUE=DATE:20261115\r\n')
+  })
+
   it('exporte un modèle avec sa règle, ses exceptions et ses modifications', () => {
     const ics = buildCalendarIcs({
       items: [],

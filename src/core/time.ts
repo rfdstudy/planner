@@ -200,6 +200,25 @@ export function formatDaysUntil(
   return `J+${Math.abs(days)}`
 }
 
+/**
+ * Compte à rebours d'un élément, calculé sur sa date de début. Pendant la
+ * période inclusive (date de début à date de fin), le libellé devient
+ * « en cours » ; après la période, le décalage continue en « J+n ».
+ */
+export function formatCountdown(
+  startDate: LocalDate,
+  endDate: LocalDate | null | undefined = null,
+  referenceDate: LocalDate = todayLocalDate()
+): string {
+  const lastDate = endDate ?? startDate
+
+  if (referenceDate >= startDate && referenceDate <= lastDate) {
+    return 'en cours'
+  }
+
+  return formatDaysUntil(startDate, referenceDate)
+}
+
 /** Formate des minutes depuis minuit en `HH:MM` (1440 donne `24:00`). */
 export function minutesToTime(minutes: number): string {
   if (!Number.isInteger(minutes) || minutes < 0 || minutes > MINUTES_PER_DAY) {

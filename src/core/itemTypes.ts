@@ -173,6 +173,20 @@ export function firstNonTaskType(types: readonly ItemType[]): ItemType | null {
 }
 
 /**
+ * Premier type actif placé sur la ligne du haut. Les types non-tâches sont
+ * privilégiés pour une création rapide, mais un type tâche reste utilisable.
+ */
+export function firstTopLineType(types: readonly ItemType[]): ItemType | null {
+  const active = sortActiveItemTypes(types)
+
+  return (
+    active.find((type) => type.placement === 'topLine' && !type.isTask) ??
+    active.find((type) => type.placement === 'topLine') ??
+    null
+  )
+}
+
+/**
  * Type de secours lorsqu'un élément référence un type supprimé ou absent d'une
  * sauvegarde ancienne. Il reste affichable sans jamais bloquer la grille.
  */

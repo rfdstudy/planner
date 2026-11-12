@@ -1,15 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_TOP_LINE_ROWS,
+  blockOccursOn,
   getBlockContentMode,
+  getBlockEndDate,
   getFreeSlots,
+  isMultiDayBlock,
   layoutBlocks,
+  layoutTopLineBands,
+  normalizeBlockEndDate,
   showsBlockCategory,
-  type SchedulableBlock
+  type SchedulableBlock,
+  type TopLineBand
 } from '../src/core/schedule'
 
 function block(id: string, startMin: number | null, durationMin: number): SchedulableBlock {
   return { id, startMin, durationMin }
 }
+
+function band(id: string, date: string, endDate: string | null = null): TopLineBand {
+  return { id, date, endDate }
+}
+
+const WEEK = [
+  '2026-11-09',
+  '2026-11-10',
+  '2026-11-11',
+  '2026-11-12',
+  '2026-11-13',
+  '2026-11-14',
+  '2026-11-15'
+]
 
 describe('placement côte à côte des blocs', () => {
   it('laisse toute la largeur aux blocs qui ne se chevauchent pas', () => {
@@ -105,6 +126,154 @@ describe('placement côte à côte des blocs', () => {
 
     expect(placements).toHaveLength(1)
     expect(placements[0]?.block.id).toBe('normal')
+  })
+})
+
+describe('périodes de plusieurs jours', () => {
+  it('renvoie le dernier jour inclus, ou la date de début sans fin', () => {
+    expect(getBlockEndDate({ date: '2026-11-12' })).toBe('2026-11-12')
+    expect(getBlockEndDate({ date: '2026-11-12', endDate: null })).toBe('2026-11-12')
+    expect(getBlockEndDate({ date: '2026-11-12', endDate: '2026-11-14' })).toBe('2026-11-14')
+  })
+
+  it('reconnaît un élément multi-jours et sa présence sur chaque jour', () => {
+    const holidays = { date: '2026-11-10', endDate: '2026-11-12' }
+
+    expect(isMultiDayBlock(holidays)).toBe(true)
+    expect(isMultiDayBlock({ date: '2026-11-10' })).toBe(false)
+    expect(blockOccursOn(holidays, '2026-11-09')).toBe(false)
+    expect(blockOccursOn(holidays, '2026-11-10')).toBe(true)
+    expect(blockOccursOn(holidays, '2026-11-12')).toBe(true)
+    expect(blockOccursOn(holidays, '2026-11-13')).toBe(false)
+  })
+
+  it('normalise une fin absente ou égale au début', () => {
+    expect(normalizeBlockEndDate('2026-11-12', undefined)).toBeNull()
+    expect(normalizeBlockEndDate('2026-11-12', null)).toBeNull()
+    expect(normalizeBlockEndDate('2026-11-12', '')).toBeNull()
+    expect(normalizeBlockEndDate('2026-11-12', '2026-11-12')).toBeNull()
+    expect(normalizeBlockEndDate('2026-11-12', '2026-11-14')).toBe('2026-11-14')
+  })
+
+  it('refuse une fin antérieure ou une date invalide', () => {
+    expect(() => normalizeBlockEndDate('2026-11-12', '2026-11-10')).toThrow(RangeError)
+    expect(() => normalizeBlockEndDate('2026-02-30', null)).toThrow(RangeError)
+    expect(() => normalizeBlockEndDate('2026-11-12', '2026-02-30')).toThrow(RangeError)
+  })
+
+  it('ne bloque pas les créneaux libres puisqu’il n’a pas d’heure', () => {
+    const holidays = {
+      id: 'vacances',
+      startMin: null,
+      durationMin: 1440,
+      date: '2026-11-10',
+      endDate: '2026-11-14'
+    }
+
+    expect(getFreeSlots([holidays], { dayStartMin: 480, dayEndMin: 720 })).toEqual([
+      { startMin: 480, endMin: 720, durationMin: 240 }
+    ])
+  })
+})
+
+describe('empilement des bandes de la ligne du haut', () => {
+  it('place les bandes qui se chevauchent sur des lignes séparées', () => {
+    const layout = layoutTopLineBands(
+      [band('a', '2026-11-10', '2026-11-12'), band('b', '2026-11-11', '2026-11-13')],
+      WEEK
+    )
+
+    expect(layout.rowCount).toBe(2)
+    expect(layout.visibleRowCount).toBe(2)
+    expect(layout.hiddenCount).toBe(0)
+    expect(
+      layout.bands.map(({ band: placed, row, startIndex, endIndex }) => ({
+        id: placed.id,
+        row,
+        startIndex,
+        endIndex
+      }))
+    ).toEqual([
+      { id: 'a', row: 0, startIndex: 1, endIndex: 3 },
+      { id: 'b', row: 1, startIndex: 2, endIndex: 4 }
+    ])
+  })
+
+  it('fait partager une ligne aux bandes qui se touchent', () => {
+    const layout = layoutTopLineBands(
+      [
+        band('a', '2026-11-10', '2026-11-12'),
+        band('b', '2026-11-11', '2026-11-13'),
+        band('c', '2026-11-13', '2026-11-13')
+      ],
+      WEEK
+    )
+
+    expect(layout.bands.map(({ band: placed, row }) => ({ id: placed.id, row }))).toEqual([
+      { id: 'a', row: 0 },
+      { id: 'b', row: 1 },
+      { id: 'c', row: 0 }
+    ])
+  })
+
+  it('plafonne l’affichage à trois lignes et compte les bandes masquées', () => {
+    const layout = layoutTopLineBands(
+      [
+        band('a', '2026-11-10', '2026-11-12'),
+        band('b', '2026-11-10', '2026-11-12'),
+        band('c', '2026-11-10', '2026-11-12'),
+        band('d', '2026-11-10', '2026-11-12')
+      ],
+      WEEK
+    )
+
+    expect(MAX_TOP_LINE_ROWS).toBe(3)
+    expect(layout.rowCount).toBe(4)
+    expect(layout.visibleRowCount).toBe(3)
+    expect(layout.hiddenCount).toBe(1)
+    expect(layout.bands.filter((placement) => placement.row >= MAX_TOP_LINE_ROWS)).toHaveLength(1)
+  })
+})
+
+describe('troncature des bandes aux limites de la semaine', () => {
+  it('marque et coupe une bande commencée avant la période', () => {
+    const layout = layoutTopLineBands([band('a', '2026-11-06', '2026-11-10')], WEEK)
+    const placement = layout.bands[0]
+
+    expect(placement?.startIndex).toBe(0)
+    expect(placement?.endIndex).toBe(1)
+    expect(placement?.clippedStart).toBe(true)
+    expect(placement?.clippedEnd).toBe(false)
+  })
+
+  it('marque et coupe une bande qui finit après la période', () => {
+    const layout = layoutTopLineBands([band('a', '2026-11-13', '2026-11-20')], WEEK)
+    const placement = layout.bands[0]
+
+    expect(placement?.startIndex).toBe(4)
+    expect(placement?.endIndex).toBe(6)
+    expect(placement?.clippedStart).toBe(false)
+    expect(placement?.clippedEnd).toBe(true)
+  })
+
+  it('tronque une bande qui couvre toute la période des deux côtés', () => {
+    const layout = layoutTopLineBands([band('a', '2026-10-01', '2026-12-31')], WEEK)
+    const placement = layout.bands[0]
+
+    expect(placement?.startIndex).toBe(0)
+    expect(placement?.endIndex).toBe(6)
+    expect(placement?.clippedStart).toBe(true)
+    expect(placement?.clippedEnd).toBe(true)
+  })
+
+  it('ignore une bande entièrement hors de la période affichée', () => {
+    const layout = layoutTopLineBands(
+      [band('avant', '2026-11-01', '2026-11-08'), band('apres', '2026-11-16', '2026-11-20')],
+      WEEK
+    )
+
+    expect(layout.bands).toEqual([])
+    expect(layout.rowCount).toBe(0)
   })
 })
 

@@ -1,3 +1,4 @@
+import { normalizeBlockEndDate } from './schedule'
 import {
   MINUTES_PER_DAY,
   SNAP_MINUTES,
@@ -26,6 +27,8 @@ export interface ElementDraft {
   notes: string
   categoryId: string | null
   date: string
+  /** Dernier jour inclus d'un élément de la ligne du haut, au format ISO. */
+  endDate: string
   time: string
   /** Bloc sur la ligne du haut, sans heure de début. */
   fullDay: boolean
@@ -41,6 +44,8 @@ export interface ElementDraftValues {
   notes: string
   categoryId: string | null
   date: LocalDate
+  /** Date de fin inclusive, ou `null` pour un élément d'un seul jour. */
+  endDate: LocalDate | null
   startMin: number | null
   durationMin: number
   estimateMin: number | null
@@ -78,6 +83,8 @@ export interface NewElementDraftInput {
   startMin: number
   /** Type sélectionné : il fournit le comportement par défaut. */
   type: ItemType
+  /** Dernier jour inclus, pour une création par glisser sur la ligne du haut. */
+  endDate?: LocalDate | null
 }
 
 export interface NewElementDraftOptions {
@@ -116,6 +123,7 @@ export function createNewElementDraft(
       ? Math.min(MINUTES_PER_DAY, Math.max(1, Math.round(options.taskDurationMin)))
       : DEFAULT_ELEMENT_DURATION_MIN
   const durationMin = input.type.isTask ? taskDurationMin : DEFAULT_ELEMENT_DURATION_MIN
+  const endDate = fullDay ? (normalizeBlockEndDate(input.date, input.endDate) ?? input.date) : ''
 
   return {
     variant: 'element',
@@ -125,6 +133,7 @@ export function createNewElementDraft(
     notes: '',
     categoryId: null,
     date: input.date,
+    endDate,
     time: fullDay ? '' : minutesToTime(startMin),
     fullDay,
     durationMin: String(durationMin),
@@ -135,11 +144,12 @@ export function createNewElementDraft(
 
 /** Brouillon correspondant à un élément et à son bloc déjà enregistrés. */
 export function elementDraftFrom(item: Item, block: Block, type: ItemType): ElementDraft {
-  const fullDay = block.startMin === null
+  const fullDay = type.placement === 'topLine' || block.startMin === null
   const time =
     block.startMin === null
       ? ''
       : minutesToTime(clampMinutes(block.startMin, 0, MINUTES_PER_DAY - 1))
+  const endDate = fullDay ? (normalizeBlockEndDate(block.date, block.endDate) ?? block.date) : ''
 
   return {
     variant: 'element',
@@ -149,6 +159,7 @@ export function elementDraftFrom(item: Item, block: Block, type: ItemType): Elem
     notes: item.notes,
     categoryId: item.categoryId,
     date: block.date,
+    endDate,
     time,
     fullDay,
     durationMin: String(block.durationMin),
@@ -175,6 +186,23 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
 
   if (!isLocalDate(draft.date)) {
     return { ok: false, message: 'Choisissez une date valide.' }
+  }
+
+  let endDate: LocalDate | null = null
+
+  if (draft.fullDay && draft.endDate.trim().length > 0) {
+    if (!isLocalDate(draft.endDate)) {
+      return { ok: false, message: 'Choisissez une date de fin valide.' }
+    }
+
+    if (draft.endDate < draft.date) {
+      return {
+        ok: false,
+        message: 'La date de fin doit être égale ou postérieure à la date de début.'
+      }
+    }
+
+    endDate = draft.endDate === draft.date ? null : draft.endDate
   }
 
   const durationMin = parsePositiveMinutes(draft.durationMin)
@@ -237,6 +265,7 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
       notes: draft.notes.trim(),
       categoryId: draft.categoryId,
       date: draft.date,
+      endDate,
       startMin,
       durationMin,
       estimateMin,

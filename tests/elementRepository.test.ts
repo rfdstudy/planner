@@ -40,6 +40,79 @@ describe('édition d’un élément et de son bloc', () => {
     expect(await repositories.blocks.listByItem(saved.item.id)).toHaveLength(1)
   })
 
+  it('crée un élément multi-jours sans heure sur la ligne du haut', async () => {
+    const saved = await repositories.elements.create({
+      item: {
+        ...ITEM,
+        typeId: DEFAULT_ITEM_TYPE_IDS.event,
+        title: 'Vacances',
+        estimateMin: null,
+        status: null
+      },
+      block: {
+        date: '2026-11-12',
+        startMin: null,
+        durationMin: 60,
+        endDate: '2026-11-14'
+      }
+    })
+
+    expect(saved.block.startMin).toBeNull()
+    expect(saved.block.endDate).toBe('2026-11-14')
+  })
+
+  it('normalise une fin égale au début en élément d’un jour', async () => {
+    const saved = await repositories.elements.create({
+      item: {
+        ...ITEM,
+        typeId: DEFAULT_ITEM_TYPE_IDS.event,
+        title: 'Oral',
+        estimateMin: null,
+        status: null
+      },
+      block: {
+        date: '2026-11-12',
+        startMin: null,
+        durationMin: 60,
+        endDate: '2026-11-12'
+      }
+    })
+
+    expect(saved.block.endDate).toBeNull()
+  })
+
+  it('refuse une date de fin sur un type de la grille ou avec une heure', async () => {
+    await expect(
+      repositories.elements.create({
+        item: ITEM,
+        block: {
+          date: '2026-11-12',
+          startMin: null,
+          durationMin: 60,
+          endDate: '2026-11-14'
+        }
+      })
+    ).rejects.toBeInstanceOf(RangeError)
+
+    await expect(
+      repositories.elements.create({
+        item: {
+          ...ITEM,
+          typeId: DEFAULT_ITEM_TYPE_IDS.event,
+          title: 'Vacances',
+          estimateMin: null,
+          status: null
+        },
+        block: {
+          date: '2026-11-12',
+          startMin: 840,
+          durationMin: 60,
+          endDate: '2026-11-14'
+        }
+      })
+    ).rejects.toBeInstanceOf(RangeError)
+  })
+
   it('modifie les champs de l’élément et la position du bloc', async () => {
     const saved = await repositories.elements.create({
       item: ITEM,
