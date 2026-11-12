@@ -1,7 +1,7 @@
 {
   "name": "planner",
   "productName": "Planner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Planner v2 — application de planification personnelle",
   "main": "./out/main/index.js",
   "author": "Planner",

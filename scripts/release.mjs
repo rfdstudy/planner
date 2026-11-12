@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
-import { execSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { execFileSync, execSync } from 'node:child_process'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +16,8 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const packagePath = join(projectRoot, 'package.json')
 const lockPath = join(projectRoot, 'package-lock.json')
 const releaseDir = join(projectRoot, 'release')
+const INSTALLER_NAME = 'Planner-Setup.exe'
+const PRECEDENT_DIRECTORY = 'precedent'
 
 function fail(message) {
   console.error(`release: ${message}`)
@@ -69,21 +79,53 @@ function writeVersion(filePath, version) {
   writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
-function findInstaller(version, productName) {
-  const expectedName = `${productName}-${version}-setup.exe`
-  const expectedPath = join(releaseDir, expectedName)
+/**
+ * Conserve l'installateur courant dans precedent/, puis vide release/ en
+ * gardant ce dossier. Utilisé avant le nouveau build.
+ */
+export function prepareReleaseDirectory(directory = releaseDir) {
+  mkdirSync(directory, { recursive: true })
 
-  if (existsSync(expectedPath)) return expectedPath
+  const currentInstaller = join(directory, INSTALLER_NAME)
 
-  const files = existsSync(releaseDir)
-    ? readdirSync(releaseDir).filter((name) => name.endsWith('.exe'))
-    : []
+  if (existsSync(currentInstaller)) {
+    const precedentDirectory = join(directory, PRECEDENT_DIRECTORY)
+    mkdirSync(precedentDirectory, { recursive: true })
+    cpSync(currentInstaller, join(precedentDirectory, INSTALLER_NAME), { force: true })
+  }
 
-  fail(
-    `installateur introuvable (${expectedName}). Fichiers .exe présents : ${
-      files.length === 0 ? 'aucun' : files.join(', ')
-    }.`
-  )
+  for (const entry of readdirSync(directory)) {
+    if (entry === PRECEDENT_DIRECTORY) continue
+
+    rmSync(join(directory, entry), { recursive: true, force: true })
+  }
+}
+
+/**
+ * Après electron-builder, ne laisse que l'installateur et l'installateur
+ * précédent. Supprime win-unpacked, les fichiers YAML et les artefacts annexes.
+ */
+export function cleanReleaseDirectory(directory = releaseDir) {
+  if (!existsSync(directory)) return
+
+  for (const entry of readdirSync(directory)) {
+    if (entry === INSTALLER_NAME || entry === PRECEDENT_DIRECTORY) continue
+
+    rmSync(join(directory, entry), { recursive: true, force: true })
+  }
+}
+
+function openInstaller(installerPath) {
+  const command =
+    process.platform === 'win32'
+      ? ['cmd.exe', ['/c', 'start', '', installerPath]]
+      : [process.platform === 'darwin' ? 'open' : 'xdg-open', [installerPath]]
+
+  try {
+    execFileSync(command[0], command[1], { stdio: 'ignore' })
+  } catch {
+    console.warn('release: impossible d’ouvrir l’installateur automatiquement.')
+  }
 }
 
 function main() {
@@ -104,6 +146,12 @@ function main() {
   console.log(`release: version ${previousVersion} -> ${nextVersion}`)
 
   try {
+    prepareReleaseDirectory()
+  } catch {
+    fail('impossible de préparer le dossier release. Fermez Planner puis réessayez.')
+  }
+
+  try {
     execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' })
     execSync('npm run dist', { cwd: projectRoot, stdio: 'inherit' })
   } catch {
@@ -112,10 +160,22 @@ function main() {
     )
   }
 
-  const productName = packageJson.productName ?? packageJson.name
-  const installerPath = findInstaller(nextVersion, productName)
+  try {
+    cleanReleaseDirectory()
+  } catch {
+    fail('impossible de nettoyer le dossier release. Fermez Planner puis réessayez.')
+  }
 
-  console.log(`\nInstallateur : ${installerPath}`)
+  const installerPath = join(releaseDir, INSTALLER_NAME)
+
+  if (!existsSync(installerPath)) {
+    fail(`installateur introuvable : ${installerPath}`)
+  }
+
+  console.log(`\nNouvelle version : ${nextVersion}`)
+  console.log(`Installateur : ${installerPath}`)
+
+  openInstaller(installerPath)
 }
 
 const invokedPath = process.argv[1] === undefined ? '' : resolve(process.argv[1])

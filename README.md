@@ -27,8 +27,8 @@ npm run lint       # vérifie le code
 npm run dist
 ```
 
-Le fichier `release/Planner-0.1.0-setup.exe` est produit. Il s'agit d'un
-installateur NSIS par utilisateur (aucun droit administrateur nécessaire), avec
+Le fichier `release/Planner-Setup.exe` est produit. Il s'agit d'un installateur
+NSIS par utilisateur (aucun droit administrateur nécessaire), avec
 icône, nom « Planner » et raccourcis Bureau et menu Démarrer.
 
 Pour tester l'application sans passer par l'installateur :
@@ -44,15 +44,33 @@ Le dossier `release/win-unpacked/` contient alors l'application complète.
 
 ## Mettre à jour l'application
 
+### Installer la nouvelle version
+
 1. Avant la mise à jour, ouvrez **Réglages** dans Planner et cliquez sur
    **Exporter la sauvegarde (JSON)**. Conservez ce fichier : il permet de
    restaurer toutes les données en cas de problème.
 2. Fermez complètement Planner (toutes ses fenêtres).
-3. Lancez le nouvel installateur `Planner-x.y.z-setup.exe`.
+3. Lancez `release/Planner-Setup.exe`.
 4. Installez-le par-dessus la version existante : il n'est pas nécessaire de
    désinstaller l'ancienne version.
 5. Relancez Planner. Les données restent dans `%APPDATA%\Planner` et sont
    conservées.
+
+L'installateur s'appelle toujours `Planner-Setup.exe` : son nom ne contient pas
+de numéro de version.
+
+### Revenir à la version précédente
+
+Lors de la préparation d'une nouvelle version, l'installateur précédent est
+conservé dans `release/precedent/Planner-Setup.exe`. Il est remplacé à chaque
+nouvelle version, qui permet donc de revenir à la version immédiatement
+précédente.
+
+1. Exportez vos données en JSON depuis **Réglages**.
+2. Fermez complètement Planner.
+3. Lancez `release/precedent/Planner-Setup.exe`.
+4. Installez-le par-dessus la version actuelle, puis relancez Planner.
+5. Si nécessaire, importez la sauvegarde JSON depuis **Réglages**.
 
 > Une désinstallation, une réinstallation ou une mise à jour ne supprime pas
 > les données. L'export JSON reste la sauvegarde à conserver durablement.
