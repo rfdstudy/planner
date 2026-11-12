@@ -45,6 +45,7 @@ function PaletteSession(): React.JSX.Element {
   const goToDate = useUiStore((state) => state.goToDate)
   const setView = useUiStore((state) => state.setView)
   const openCategories = useUiStore((state) => state.openCategories)
+  const openTypes = useUiStore((state) => state.openTypes)
   const openTemplates = useUiStore((state) => state.openTemplates)
   const openSettings = useUiStore((state) => state.openSettings)
   const requestCreation = useUiStore((state) => state.requestCreation)
@@ -105,6 +106,15 @@ function PaletteSession(): React.JSX.Element {
         keywords: ['matières', 'projets', 'couleurs'],
         run: () => {
           openCategories()
+          closePalette()
+        }
+      },
+      {
+        id: 'open-types',
+        label: 'Ouvrir Types',
+        keywords: ['types', 'éléments', 'comportement', 'couleurs'],
+        run: () => {
+          openTypes()
           closePalette()
         }
       },
@@ -170,6 +180,7 @@ function PaletteSession(): React.JSX.Element {
     openCategories,
     openSettings,
     openTemplates,
+    openTypes,
     requestCreation,
     setView,
     showCalendar

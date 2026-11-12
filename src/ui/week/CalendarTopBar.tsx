@@ -12,6 +12,7 @@ interface CalendarTopBarProps {
   onChangeView: (viewMode: CalendarViewMode) => void
   onOpenPalette: () => void
   onOpenCategories: () => void
+  onOpenTypes: () => void
   onOpenTemplates: () => void
   onOpenSettings: () => void
   onLoadDemo?: () => void
@@ -27,6 +28,7 @@ export function CalendarTopBar({
   onChangeView,
   onOpenPalette,
   onOpenCategories,
+  onOpenTypes,
   onOpenTemplates,
   onOpenSettings,
   onLoadDemo,
@@ -114,6 +116,7 @@ export function CalendarTopBar({
 
         <AppMenu
           onOpenCategories={onOpenCategories}
+          onOpenTypes={onOpenTypes}
           onOpenTemplates={onOpenTemplates}
           onOpenSettings={onOpenSettings}
           onLoadDemo={onLoadDemo}

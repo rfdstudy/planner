@@ -4,6 +4,7 @@ import styles from './AppMenu.module.css'
 
 interface AppMenuProps {
   onOpenCategories: () => void
+  onOpenTypes: () => void
   onOpenTemplates: () => void
   onOpenSettings: () => void
   /** Commande de développement uniquement. */
@@ -13,6 +14,7 @@ interface AppMenuProps {
 
 export function AppMenu({
   onOpenCategories,
+  onOpenTypes,
   onOpenTemplates,
   onOpenSettings,
   onLoadDemo,
@@ -120,6 +122,18 @@ export function AppMenu({
             }}
           >
             Catégories
+          </button>
+
+          <button
+            type="button"
+            className={styles.item}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenTypes()
+            }}
+          >
+            Types
           </button>
 
           <button

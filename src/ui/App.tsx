@@ -12,6 +12,7 @@ import { Icon } from './components/Icon'
 import { WelcomeScreen } from './onboarding/WelcomeScreen'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { TemplatesScreen } from './templates/TemplatesScreen'
+import { TypesScreen } from './types/TypesScreen'
 import { DayView } from './week/DayView'
 import { WeekView } from './week/WeekView'
 import styles from './App.module.css'
@@ -129,6 +130,8 @@ function App(): React.JSX.Element {
               <TemplatesScreen />
             ) : screen === 'settings' ? (
               <SettingsScreen />
+            ) : screen === 'types' ? (
+              <TypesScreen />
             ) : (
               <CategoriesScreen />
             )}

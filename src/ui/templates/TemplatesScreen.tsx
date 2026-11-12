@@ -3,11 +3,13 @@ import { liveQuery } from 'dexie'
 import {
   WEEKDAY_CODES,
   buildWeeklyRrule,
+  buildYearlyRrule,
+  getRecurrenceKind,
   parseWeeklyDays,
   type WeekdayCode
 } from '../../core/recurrence'
 import { formatDurationMinutes, minutesToTime, parseLocalDate } from '../../core/time'
-import type { Category, CategoryGroup, Template } from '../../core/types'
+import type { Category, CategoryGroup, ItemType, Template } from '../../core/types'
 import { repositories } from '../../db/repositories'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
@@ -36,6 +38,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
 
 interface TemplatesOverview {
   templates: Template[]
+  itemTypes: ItemType[]
   categories: Category[]
   categoryGroups: CategoryGroup[]
 }
@@ -58,11 +61,19 @@ function describeValidity(template: Template): string {
   return `Du ${formatDate(template.validFrom)} au ${formatDate(template.validUntil)}`
 }
 
+function describeRecurrence(template: Template): string {
+  if (getRecurrenceKind(template.rrule) === 'yearly') return 'Chaque année'
+
+  const days = parseWeeklyDays(template.rrule)
+  return days.length === 0 ? 'Règle personnalisée' : describeDays(days)
+}
+
 function initialValuesFrom(template: Template): TemplateFormInitialValues {
   return {
-    kind: template.kind,
+    typeId: template.typeId,
     title: template.title,
     categoryId: template.categoryId,
+    recurrence: getRecurrenceKind(template.rrule) ?? 'weekly',
     days: parseWeeklyDays(template.rrule),
     startMin: template.startMin,
     durationMin: template.durationMin,
@@ -75,8 +86,10 @@ function sortTemplates(templates: readonly Template[]): Template[] {
   return [...templates].sort((a, b) => {
     const aDays = parseWeeklyDays(a.rrule)
     const bDays = parseWeeklyDays(b.rrule)
-    const aFirst = aDays.length === 0 ? 7 : WEEKDAY_CODES.indexOf(aDays[0])
-    const bFirst = bDays.length === 0 ? 7 : WEEKDAY_CODES.indexOf(bDays[0])
+    const aYearly = getRecurrenceKind(a.rrule) === 'yearly'
+    const bYearly = getRecurrenceKind(b.rrule) === 'yearly'
+    const aFirst = aYearly ? 7 : aDays.length === 0 ? 7 : WEEKDAY_CODES.indexOf(aDays[0])
+    const bFirst = bYearly ? 7 : bDays.length === 0 ? 7 : WEEKDAY_CODES.indexOf(bDays[0])
 
     return aFirst - bFirst || a.startMin - b.startMin || a.title.localeCompare(b.title, 'fr')
   })
@@ -97,6 +110,7 @@ export function TemplatesScreen(): React.JSX.Element {
   useEffect(() => {
     const subscription = liveQuery(async () => ({
       templates: await repositories.templates.list(),
+      itemTypes: await repositories.itemTypes.list(),
       categories: await repositories.categories.list(),
       categoryGroups: await repositories.categoryGroups.list()
     })).subscribe({
@@ -111,6 +125,7 @@ export function TemplatesScreen(): React.JSX.Element {
   }, [])
 
   const templates = sortTemplates(overview?.templates ?? [])
+  const itemTypes = overview?.itemTypes ?? []
   const categories = overview?.categories ?? []
   const categoryGroups = overview?.categoryGroups ?? []
   const editedTemplate =
@@ -134,10 +149,10 @@ export function TemplatesScreen(): React.JSX.Element {
 
   async function handleSubmit(values: TemplateFormValues): Promise<void> {
     const input = {
-      kind: values.kind,
+      typeId: values.typeId,
       title: values.title,
       categoryId: values.categoryId,
-      rrule: buildWeeklyRrule(values.days),
+      rrule: values.recurrence === 'yearly' ? buildYearlyRrule() : buildWeeklyRrule(values.days),
       startMin: values.startMin,
       durationMin: values.durationMin,
       validFrom: values.validFrom,
@@ -216,6 +231,7 @@ export function TemplatesScreen(): React.JSX.Element {
               key={editor.mode === 'create' ? 'new-template' : editor.templateId}
               mode={editor.mode}
               initial={editedTemplate === null ? undefined : initialValuesFrom(editedTemplate)}
+              itemTypes={itemTypes}
               categories={categories}
               categoryGroups={categoryGroups}
               onSubmit={handleSubmit}
@@ -231,23 +247,22 @@ export function TemplatesScreen(): React.JSX.Element {
         ) : (
           <div className={styles.list}>
             {templates.map((template) => {
-              const days = parseWeeklyDays(template.rrule)
+              const type = itemTypes.find((candidate) => candidate.id === template.typeId) ?? null
               const category =
                 template.categoryId === null
                   ? null
                   : (categories.find((candidate) => candidate.id === template.categoryId) ?? null)
               const endMin = Math.min(1440, template.startMin + template.durationMin)
               const deleting = pendingDeleteId === template.id
+              const topLine = type?.placement === 'topLine'
 
               return (
                 <article className={styles.card} key={template.id}>
                   <div className={styles.row}>
                     <div className={styles.main}>
                       <div className={styles.titleLine}>
-                        <span className={styles.kindBadge}>
-                          {template.kind === 'fixed' ? 'Fixe' : 'Libre'}
-                        </span>
-                        {category !== null && (
+                        <span className={styles.kindBadge}>{type?.name ?? 'Type inconnu'}</span>
+                        {category !== null && type?.style === 'category' && (
                           <>
                             <span
                               className={styles.categoryDot}
@@ -260,12 +275,12 @@ export function TemplatesScreen(): React.JSX.Element {
                         <span className={styles.templateTitle}>{template.title}</span>
                       </div>
                       <p className={styles.metaLine}>
-                        <span>
-                          {days.length === 0 ? 'Règle personnalisée' : describeDays(days)}
-                        </span>
+                        <span>{describeRecurrence(template)}</span>
                         <span className={styles.metaSeparator}>·</span>
                         <span>
-                          {minutesToTime(template.startMin)} – {minutesToTime(endMin)}
+                          {topLine
+                            ? 'Journée entière'
+                            : `${minutesToTime(template.startMin)} – ${minutesToTime(endMin)}`}
                         </span>
                         <span className={styles.metaSeparator}>·</span>
                         <span>{formatDurationMinutes(template.durationMin)}</span>

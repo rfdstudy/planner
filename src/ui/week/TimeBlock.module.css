@@ -24,32 +24,43 @@
   will-change: height;
 }
 
-.fixed {
+.neutral {
   background: var(--bg-subtle);
   color: var(--text-2);
 }
 
-.fixed:hover {
+.neutral:hover {
   background: var(--bg-hover);
 }
 
-.task {
+/* Une couleur propre donne au type neutre une barre et un fond très légers. */
+.neutral.withTypeColor {
+  border-left: 3px solid var(--type-color);
+  background: color-mix(in srgb, var(--type-color) 9%, var(--bg));
+  color: var(--text);
+}
+
+.neutral.withTypeColor:hover {
+  background: color-mix(in srgb, var(--type-color) 14%, var(--bg));
+}
+
+.category {
   border-left: 3px solid var(--category-color, var(--line-strong));
   background: color-mix(in srgb, var(--category-color, var(--line-strong)) 10%, var(--bg));
   color: var(--text);
 }
 
-.task:hover {
+.category:hover {
   background: color-mix(in srgb, var(--category-color, var(--line-strong)) 15%, var(--bg));
 }
 
-.exam {
+.alert {
   border-left: 3px solid var(--alert);
   background: var(--alert-soft);
   color: var(--text);
 }
 
-.exam:hover {
+.alert:hover {
   background: color-mix(in srgb, var(--alert) 9%, var(--alert-soft));
 }
 
@@ -57,6 +68,10 @@
   border: 1px dashed var(--line-strong);
   background: transparent;
   color: var(--text-3);
+}
+
+.free.withTypeColor {
+  border-color: var(--type-color);
 }
 
 .free:hover {
@@ -116,8 +131,8 @@
   overflow: hidden;
 }
 
-.task .content,
-.exam .content {
+.category .content,
+.alert .content {
   padding-left: 5px;
 }
 
@@ -128,7 +143,7 @@
   gap: 5px;
 }
 
-.examDot {
+.alertDot {
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
@@ -148,7 +163,7 @@
   text-overflow: ellipsis;
 }
 
-.fixed .title,
+.neutral .title,
 .free .title {
   font-weight: 400;
 }
@@ -212,8 +227,8 @@
   padding: 1px 6px;
 }
 
-.task.compact .content,
-.exam.compact .content {
+.category.compact .content,
+.alert.compact .content {
   padding-left: 4px;
 }
 

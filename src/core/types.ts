@@ -40,19 +40,44 @@ export interface Category extends BaseRecord {
   archivedAt: IsoDateTime | null
 }
 
-export type ItemKind = 'fixed' | 'task' | 'exam' | 'free'
+export type ItemTypeStyle = 'neutral' | 'category' | 'alert' | 'free'
+
+/** Placement par défaut d'un nouvel élément de ce type. */
+export type ItemTypePlacement = 'grid' | 'topLine'
+
+/**
+ * Type d'élément entièrement modifiable depuis l'interface. Les quatre types
+ * historiques (Tâche, Fixe, Épreuve, Libre) sont créés par migration, mais
+ * aucun comportement n'est codé en dur dans les composants.
+ */
+export interface ItemType extends BaseRecord {
+  name: string
+  order: number
+  archivedAt: IsoDateTime | null
+  style: ItemTypeStyle
+  /**
+   * Couleur propre, utilisée lorsque le style n'emprunte pas la couleur de la
+   * catégorie. `null` signifie « aucune couleur propre ».
+   */
+  color: string | null
+  /** L'élément peut être à planifier, estimé, découpé et coché. */
+  isTask: boolean
+  /** Affiche l'échéance relative « J-x ». */
+  countdown: boolean
+  placement: ItemTypePlacement
+}
 
 export type ItemStatus = 'todo' | 'done'
 
 export interface Item extends BaseRecord {
-  kind: ItemKind
+  typeId: string
   title: string
   notes: string
   /** `null` signifie « sans catégorie » (neutre). */
   categoryId: string | null
   /** Durée totale estimée, à répartir en un ou plusieurs blocs. */
   estimateMin: number | null
-  /** Utile pour les tâches ; `null` pour les autres types d'éléments. */
+  /** Utile pour les types « tâche » ; `null` pour les autres. */
   status: ItemStatus | null
   /** Renseigné si l'élément provient d'un modèle de semaine type. */
   templateId: string | null
@@ -66,13 +91,11 @@ export interface Block extends BaseRecord {
   durationMin: number
 }
 
-export type TemplateKind = 'fixed' | 'free'
-
 export interface Template extends BaseRecord {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
-  /** Règle de récurrence au format RRULE, par exemple `FREQ=WEEKLY;BYDAY=MO,WE`. */
+  /** Règle de récurrence RRULE, hebdomadaire ou annuelle. */
   rrule: string
   startMin: number
   durationMin: number
@@ -86,6 +109,8 @@ export interface Override extends BaseRecord {
   templateId: string
   date: LocalDate
   action: OverrideAction
+  /** Type remplacé pour cette occurrence ; `null` conserve celui du modèle. */
+  typeId: string | null
   /** Champs remplacés lorsque `action` vaut `modify` ; `null` sinon. */
   title: string | null
   categoryId: string | null

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { addDays, getWeekStart, todayLocalDate } from '../core/time'
 import type { LocalDate } from '../core/types'
 
-export type AppScreen = 'week' | 'categories' | 'templates' | 'settings'
+export type AppScreen = 'week' | 'categories' | 'types' | 'templates' | 'settings'
 
 /** Échelle de temps affichée : une journée seule ou la semaine entière. */
 export type CalendarViewMode = 'day' | 'week'
@@ -38,6 +38,7 @@ interface UiState {
   setView: (viewMode: CalendarViewMode) => void
   setWeekStartsOn: (weekStartsOn: number) => void
   openCategories: () => void
+  openTypes: () => void
   openTemplates: () => void
   openSettings: () => void
   openPalette: () => void
@@ -137,6 +138,7 @@ export const useUiStore = create<UiState>((set) => ({
       }
     }),
   openCategories: () => set({ screen: 'categories', paletteOpen: false }),
+  openTypes: () => set({ screen: 'types', paletteOpen: false }),
   openTemplates: () => set({ screen: 'templates', paletteOpen: false }),
   openSettings: () => set({ screen: 'settings', paletteOpen: false }),
   openPalette: () => set({ paletteOpen: true }),

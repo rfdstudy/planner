@@ -1,10 +1,12 @@
 import { memo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { DRAG_START_DISTANCE_PX } from '../../core/drag'
+import { fallbackItemType } from '../../core/itemTypes'
 import { getBlockContentMode, showsBlockCategory } from '../../core/schedule'
 import { MINUTES_PER_DAY, formatDaysUntil, minutesToTime } from '../../core/time'
 import type { LocalDate } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
+import { itemTypeColorStyle } from '../itemTypeStyle'
 import type { FloatingAnchor, PlacedEntry } from './scheduleTypes'
 import styles from './TimeBlock.module.css'
 
@@ -31,6 +33,7 @@ export const TimeBlock = memo(function TimeBlock({
 }: TimeBlockProps): React.JSX.Element | null {
   const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
   const { block, item, category, placement } = entry
+  const type = entry.type ?? fallbackItemType(item.typeId)
 
   if (placement.startMin >= MINUTES_PER_DAY) return null
 
@@ -38,16 +41,18 @@ export const TimeBlock = memo(function TimeBlock({
   const endMin = Math.min(MINUTES_PER_DAY, placement.endMin)
   const visibleDurationMin = Math.max(1, endMin - startMin)
   const mode = getBlockContentMode(visibleDurationMin)
-  const isExam = item.kind === 'exam'
-  const isTask = item.kind === 'task'
+  const isAlert = type.style === 'alert'
+  const isTask = type.isTask
   const isCompact = visibleDurationMin < 30
+  const hasTypeColor = type.color !== null && (type.style === 'neutral' || type.style === 'free')
   const showCategory =
-    showsBlockCategory(visibleDurationMin) && item.kind === 'task' && category !== null
+    showsBlockCategory(visibleDurationMin) && type.style === 'category' && category !== null
   const isDone = item.status === 'done'
 
   const classNames = [
     styles.block,
-    styles[item.kind],
+    styles[type.style],
+    hasTypeColor ? styles.withTypeColor : '',
     isCompact ? styles.compact : '',
     isDone ? styles.done : '',
     dragMode === 'move' ? styles.dragging : '',
@@ -61,7 +66,8 @@ export const TimeBlock = memo(function TimeBlock({
     height: `${visibleDurationMin}px`,
     left: `calc(${placement.leftRatio * 100}% + 1px)`,
     width: `calc(${placement.widthRatio * 100}% - 2px)`,
-    ...(category === null ? {} : categoryColorStyle(category.color))
+    ...(type.style === 'category' && category !== null ? categoryColorStyle(category.color) : {}),
+    ...itemTypeColorStyle(type)
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
@@ -129,7 +135,7 @@ export const TimeBlock = memo(function TimeBlock({
     >
       <div className={styles.content}>
         <div className={styles.titleLine}>
-          {isExam && <span className={styles.examDot} aria-hidden="true" />}
+          {isAlert && <span className={styles.alertDot} aria-hidden="true" />}
           <span className={styles.title}>{item.title}</span>
 
           {mode === 'title-and-start' && block.startMin !== null && (
@@ -153,7 +159,7 @@ export const TimeBlock = memo(function TimeBlock({
           <span className={styles.timeLine}>
             {minutesToTime(block.startMin)} –{' '}
             {minutesToTime(Math.min(block.startMin + block.durationMin, MINUTES_PER_DAY))}
-            {isExam && (
+            {type.countdown && (
               <span className={styles.countdown}> · {formatDaysUntil(block.date, today)}</span>
             )}
           </span>

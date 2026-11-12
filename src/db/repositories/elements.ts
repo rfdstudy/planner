@@ -1,4 +1,4 @@
-import type { Block, Item, ItemKind, ItemStatus, LocalDate } from '../../core/types'
+import type { Block, Item, ItemStatus, LocalDate } from '../../core/types'
 import type { PlannerDatabase } from '../database'
 import { RecordNotFoundError } from './base'
 import { BlockRepository } from './blocks'
@@ -6,7 +6,7 @@ import { ItemRepository } from './items'
 
 /** Champs modifiables d'un élément depuis la fenêtre d'édition. */
 export interface ElementItemInput {
-  kind: ItemKind
+  typeId: string
   title: string
   notes: string
   categoryId: string | null
@@ -48,14 +48,14 @@ export class ElementRepository {
   private readonly blocks: BlockRepository
 
   constructor(private readonly database: PlannerDatabase) {
-    this.items = new ItemRepository(database.items)
+    this.items = new ItemRepository(database)
     this.blocks = new BlockRepository(database.blocks)
   }
 
   async create(input: CreateElementInput): Promise<SavedElement> {
     return this.database.transaction(
       'rw',
-      [this.database.items, this.database.blocks],
+      [this.database.itemTypes, this.database.items, this.database.blocks],
       async () => {
         const item = await this.items.create(input.item)
         const block = await this.blocks.create({ itemId: item.id, ...input.block })
@@ -68,7 +68,7 @@ export class ElementRepository {
   async update(input: UpdateElementInput): Promise<SavedElement> {
     return this.database.transaction(
       'rw',
-      [this.database.items, this.database.blocks],
+      [this.database.itemTypes, this.database.items, this.database.blocks],
       async () => {
         const block = await this.blocks.get(input.blockId)
 
@@ -76,7 +76,7 @@ export class ElementRepository {
           throw new RecordNotFoundError('Bloc', input.blockId)
         }
 
-        const item = await this.items.update(input.itemId, input.item)
+        const item = await this.items.updateDetails(input.itemId, input.item)
         const updatedBlock = await this.blocks.update(input.blockId, input.block)
 
         return { item, block: updatedBlock }

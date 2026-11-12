@@ -8,7 +8,7 @@ import {
   type TaskDraftValues
 } from '../../core/elementEditor'
 import { notesTaskProgress } from '../../core/notes'
-import type { Category, CategoryGroup, ItemKind } from '../../core/types'
+import type { Category, CategoryGroup, ItemType } from '../../core/types'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { Icon } from '../components/Icon'
 import { NotesEditor } from './NotesEditor'
@@ -17,19 +17,13 @@ import styles from './ElementEditor.module.css'
 
 const PANEL_MARGIN = 12
 
-const KIND_OPTIONS: ReadonlyArray<{ value: ItemKind; label: string }> = [
-  { value: 'task', label: 'Tâche' },
-  { value: 'fixed', label: 'Fixe' },
-  { value: 'exam', label: 'Épreuve' },
-  { value: 'free', label: 'Libre' }
-]
-
 interface ElementEditorProps {
   mode: 'create' | 'edit' | 'task'
   initialDraft: ElementDraft | TaskDraft
   anchor: FloatingAnchor
   categories: readonly Category[]
   categoryGroups: readonly CategoryGroup[]
+  itemTypes: readonly ItemType[]
   /** Pas d'accrochage du champ horaire, en minutes. */
   snapStepMin?: number
   /** Bloc calculé depuis la semaine type : type limité et pas de notes. */
@@ -59,6 +53,7 @@ export function ElementEditor({
   anchor,
   categories,
   categoryGroups,
+  itemTypes,
   snapStepMin = 15,
   recurring = false,
   onClose,
@@ -75,13 +70,25 @@ export function ElementEditor({
   const titleRef = useRef<HTMLInputElement>(null)
   const busy = pending !== null
 
-  const kindOptions = useMemo(
-    () =>
-      recurring
-        ? KIND_OPTIONS.filter((option) => option.value !== 'task' && option.value !== 'exam')
-        : KIND_OPTIONS,
-    [recurring]
-  )
+  const typeOptions = useMemo(() => {
+    const active = itemTypes
+      .filter((type) => type.archivedAt === null)
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'fr'))
+    const current =
+      draft.variant === 'element'
+        ? (itemTypes.find((type) => type.id === draft.typeId) ?? null)
+        : null
+
+    if (
+      current !== null &&
+      current.archivedAt !== null &&
+      !active.some((type) => type.id === current.id)
+    ) {
+      return [...active, current]
+    }
+
+    return active
+  }, [draft, itemTypes])
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === draft.categoryId) ?? null,
@@ -117,7 +124,7 @@ export function ElementEditor({
 
   const archivedCurrent =
     selectedCategory !== null && selectedCategory.archivedAt !== null ? selectedCategory : null
-  const draftShape = draft.variant === 'element' ? draft.kind : 'task'
+  const draftShape = draft.variant === 'element' ? draft.typeId : 'task'
 
   useLayoutEffect(() => {
     const panel = panelRef.current
@@ -205,22 +212,31 @@ export function ElementEditor({
     setConfirmingDelete(false)
   }
 
-  function handleKindChange(kind: ItemKind): void {
+  function handleTypeChange(typeId: string): void {
     if (draft.variant !== 'element') return
 
+    const type = itemTypes.find((candidate) => candidate.id === typeId)
+
+    if (type === undefined) return
+
+    const fullDay = type.placement === 'topLine'
+
     updateDraft({
-      kind,
-      noTime: kind === 'exam' ? draft.noTime : false,
-      time: kind !== 'exam' && draft.time === '' ? '08:00' : draft.time
+      typeId: type.id,
+      isTask: type.isTask,
+      fullDay,
+      time: fullDay ? '' : draft.time === '' ? '08:00' : draft.time,
+      estimateMin: type.isTask ? draft.estimateMin : '',
+      status: type.isTask ? (draft.status ?? 'todo') : null
     })
   }
 
-  function handleNoTimeChange(noTime: boolean): void {
+  function handleFullDayChange(fullDay: boolean): void {
     if (draft.variant !== 'element') return
 
     updateDraft({
-      noTime,
-      time: noTime || draft.time !== '' ? draft.time : '08:00'
+      fullDay,
+      time: fullDay || draft.time !== '' ? draft.time : '08:00'
     })
   }
 
@@ -370,14 +386,14 @@ export function ElementEditor({
                 <span className={styles.label}>Type</span>
                 <select
                   className={styles.control}
-                  value={draft.kind}
+                  value={draft.typeId}
                   aria-label="Type"
                   disabled={busy}
-                  onChange={(event) => handleKindChange(event.target.value as ItemKind)}
+                  onChange={(event) => handleTypeChange(event.target.value)}
                 >
-                  {kindOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  {typeOptions.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
                     </option>
                   ))}
                 </select>
@@ -452,9 +468,9 @@ export function ElementEditor({
                     className={styles.control}
                     type="time"
                     step={snapStepMin * 60}
-                    value={draft.noTime ? '' : draft.time}
+                    value={draft.fullDay ? '' : draft.time}
                     aria-label="Heure"
-                    disabled={busy || draft.noTime}
+                    disabled={busy || draft.fullDay}
                     onChange={(event) => updateDraft({ time: event.target.value })}
                   />
                 </label>
@@ -479,21 +495,21 @@ export function ElementEditor({
                 </label>
               </div>
 
-              {draft.kind === 'exam' && (
+              {!recurring && (
                 <label className={styles.checkboxLabel}>
                   <input
                     type="checkbox"
-                    checked={draft.noTime}
+                    checked={draft.fullDay}
                     disabled={busy}
-                    onChange={(event) => handleNoTimeChange(event.target.checked)}
+                    onChange={(event) => handleFullDayChange(event.target.checked)}
                   />
-                  Sans heure (ligne du haut)
+                  Journée entière (ligne du haut)
                 </label>
               )}
             </>
           )}
 
-          {(draft.variant === 'task' || draft.kind === 'task') && (
+          {(draft.variant === 'task' || draft.isTask) && (
             <label className={`${styles.field} ${styles.estimateField}`}>
               <span className={styles.label}>Durée estimée</span>
               <span className={styles.suffixField}>

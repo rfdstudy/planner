@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import { PlannerDatabase } from '../src/db/database'
 import { RecordDeletedError, createRepositories, type Repositories } from '../src/db/repositories'
 
@@ -77,7 +78,7 @@ describe('repositories', () => {
 
   it('lit les blocs par date, par plage et par tâche, avec plusieurs blocs possibles', async () => {
     const item = await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Révisions',
       estimateMin: 120
     })

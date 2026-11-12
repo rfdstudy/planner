@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import {
   BACKUP_FORMAT,
   BackupFormatError,
@@ -35,7 +36,7 @@ describe('sauvegarde JSON', () => {
       groupId: group.id
     })
     const item = await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Réviser',
       categoryId: category.id
     })
@@ -46,7 +47,7 @@ describe('sauvegarde JSON', () => {
       durationMin: 60
     })
     const template = await repositories.templates.create({
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours',
       rrule: 'FREQ=WEEKLY;BYDAY=MO',
       startMin: 480,
@@ -68,12 +69,13 @@ describe('sauvegarde JSON', () => {
     expect(backup.exportedAt).toBe('2026-11-11T20:00:00.000Z')
     expect(backup.data.categoryGroups).toHaveLength(1)
     expect(backup.data.categories).toHaveLength(1)
+    expect(backup.data.itemTypes).toHaveLength(5)
     expect(backup.data.items).toHaveLength(1)
     expect(backup.data.blocks).toHaveLength(1)
     expect(backup.data.blocks[0]?.deletedAt).not.toBeNull()
     expect(backup.data.templates).toHaveLength(1)
     expect(backup.data.overrides).toHaveLength(1)
-    expect(backup.data.settings).toHaveLength(1)
+    expect(backup.data.settings.some((setting) => setting.key === 'theme')).toBe(true)
   })
 
   it('produit un JSON relisible et un nom de fichier daté', async () => {
@@ -129,7 +131,7 @@ describe('sauvegarde JSON', () => {
       groupId: originalGroup.id
     })
     const originalItem = await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Réviser',
       categoryId: originalCategory.id
     })
@@ -143,7 +145,10 @@ describe('sauvegarde JSON', () => {
     const backup = parseBackup(serializeBackup(await createBackup(repositories)))
 
     await repositories.categories.create({ name: 'À supprimer', color: '#E5484D' })
-    await repositories.items.create({ kind: 'task', title: 'Tâche en trop' })
+    await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
+      title: 'Tâche en trop'
+    })
 
     await importBackup(repositories, backup)
 
@@ -155,5 +160,84 @@ describe('sauvegarde JSON', () => {
     ])
     expect(await repositories.blocks.list({ includeDeleted: true })).toHaveLength(1)
     expect(repositories.history.size).toBe(0)
+  })
+
+  it('convertit une ancienne sauvegarde JSON (schéma 1) vers le nouveau schéma', async () => {
+    const timestamp = '2026-11-01T10:00:00.000Z'
+    const oldBackup = {
+      format: BACKUP_FORMAT,
+      version: 1,
+      exportedAt: '2026-11-11T20:00:00.000Z',
+      data: {
+        categoryGroups: [],
+        categories: [],
+        items: [
+          {
+            id: 'old-item',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            deletedAt: null,
+            kind: 'task',
+            title: 'Ancienne tâche',
+            notes: '',
+            categoryId: null,
+            estimateMin: 60,
+            status: 'todo',
+            templateId: null
+          }
+        ],
+        blocks: [
+          {
+            id: 'old-block',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            deletedAt: null,
+            itemId: 'old-item',
+            date: '2026-11-12',
+            startMin: 540,
+            durationMin: 60
+          }
+        ],
+        templates: [
+          {
+            id: 'old-template',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            deletedAt: null,
+            kind: 'free',
+            title: 'Ancien modèle',
+            categoryId: null,
+            rrule: 'FREQ=WEEKLY;BYDAY=MO',
+            startMin: 480,
+            durationMin: 60,
+            validFrom: '2026-11-02',
+            validUntil: null
+          }
+        ],
+        overrides: [],
+        settings: []
+      }
+    }
+
+    const parsed = parseBackup(JSON.stringify(oldBackup))
+
+    expect(parsed.version).toBe(DATABASE_VERSION)
+    expect(parsed.data.itemTypes).toHaveLength(5)
+    expect(parsed.data.items[0]).toMatchObject({
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
+      title: 'Ancienne tâche'
+    })
+    expect(parsed.data.items[0]).not.toHaveProperty('kind')
+    expect(parsed.data.templates[0]).toMatchObject({
+      typeId: DEFAULT_ITEM_TYPE_IDS.free,
+      title: 'Ancien modèle'
+    })
+    expect(parsed.data.templates[0]).not.toHaveProperty('kind')
+
+    await importBackup(repositories, parsed)
+
+    expect((await repositories.items.list())[0]?.typeId).toBe(DEFAULT_ITEM_TYPE_IDS.task)
+    expect(await repositories.itemTypes.list()).toHaveLength(5)
+    expect((await repositories.blocks.list())[0]?.itemId).toBe('old-item')
   })
 })

@@ -1,4 +1,5 @@
-import type { Category, Item, ItemKind, LocalDate } from '../core/types'
+import { DEFAULT_ITEM_TYPE_IDS } from '../core/itemTypes'
+import type { Category, Item, LocalDate } from '../core/types'
 import type { Repositories } from './repositories'
 
 /** Semaine reproduite par la commande de démonstration. */
@@ -26,7 +27,7 @@ const DEMO_CATEGORIES: readonly DemoCategory[] = [
 ]
 
 interface DemoItemInput {
-  kind: ItemKind
+  typeId: string
   title: string
   categoryId?: string | null
   estimateMin?: number | null
@@ -49,7 +50,7 @@ export async function loadDemoWeek(repositories: Repositories): Promise<DemoWeek
 
   const addItem = async (key: string, input: DemoItemInput): Promise<Item> => {
     const item = await repositories.items.create({
-      kind: input.kind,
+      typeId: input.typeId,
       title: input.title,
       categoryId: input.categoryId ?? null,
       estimateMin: input.estimateMin ?? null
@@ -80,87 +81,87 @@ export async function loadDemoWeek(repositories: Repositories): Promise<DemoWeek
 
   const categoryId = (name: string): string | null => categories.get(name)?.id ?? null
 
-  await addItem('petitDej', { kind: 'fixed', title: 'Petit-déj' })
-  await addItem('cours', { kind: 'fixed', title: 'Cours' })
-  await addItem('dejeuner', { kind: 'fixed', title: 'Déjeuner' })
-  await addItem('diner', { kind: 'fixed', title: 'Dîner' })
+  await addItem('petitDej', { typeId: DEFAULT_ITEM_TYPE_IDS.fixed, title: 'Petit-déj' })
+  await addItem('cours', { typeId: DEFAULT_ITEM_TYPE_IDS.fixed, title: 'Cours' })
+  await addItem('dejeuner', { typeId: DEFAULT_ITEM_TYPE_IDS.fixed, title: 'Déjeuner' })
+  await addItem('diner', { typeId: DEFAULT_ITEM_TYPE_IDS.fixed, title: 'Dîner' })
 
   await addItem('exosInfo', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Exos Info',
     categoryId: categoryId('Info'),
     estimateMin: 60
   })
   await addItem('dmMaths', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'DM Maths n°4',
     categoryId: categoryId('Maths'),
     estimateMin: 240
   })
   await addItem('coursPhysique', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Cours Physique',
     categoryId: categoryId('Physique'),
     estimateMin: 60
   })
   await addItem('anglaisVocab', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Anglais : vocabulaire',
     categoryId: categoryId('Anglais'),
     estimateMin: 30
   })
   await addItem('revisionsMaths', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Révisions DS Maths',
     categoryId: categoryId('Maths'),
     estimateMin: 195
   })
   await addItem('projetPlanner', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Projet planner',
     categoryId: categoryId('Projet'),
     estimateMin: 120
   })
 
   await addItem('dsMaths', {
-    kind: 'exam',
+    typeId: DEFAULT_ITEM_TYPE_IDS.exam,
     title: 'DS Maths',
     categoryId: categoryId('Maths')
   })
   await addItem('khollePhysique', {
-    kind: 'exam',
+    typeId: DEFAULT_ITEM_TYPE_IDS.exam,
     title: 'Khôlle Physique',
     categoryId: categoryId('Physique')
   })
   await addItem('evalAnglais', {
-    kind: 'exam',
+    typeId: DEFAULT_ITEM_TYPE_IDS.exam,
     title: 'Éval. Anglais',
     categoryId: categoryId('Anglais')
   })
 
-  await addItem('sport', { kind: 'free', title: 'Sport' })
-  await addItem('tempsLibre', { kind: 'free', title: 'Temps libre' })
+  await addItem('sport', { typeId: DEFAULT_ITEM_TYPE_IDS.free, title: 'Sport' })
+  await addItem('tempsLibre', { typeId: DEFAULT_ITEM_TYPE_IDS.free, title: 'Temps libre' })
 
   await addItem('feuilleExercices', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Feuille d’exercices n°7',
     categoryId: categoryId('Maths'),
     estimateMin: 60
   })
   await addItem('tpOcaml', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'TP OCaml',
     categoryId: categoryId('Info'),
     estimateMin: 90
   })
   await addItem('ficheChapitre', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Fiche chapitre 5',
     categoryId: categoryId('Physique'),
     estimateMin: 45
   })
   await addItem('syntheseAnglais', {
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Synthèse d’anglais',
     categoryId: categoryId('Anglais'),
     estimateMin: 45

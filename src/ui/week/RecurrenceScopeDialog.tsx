@@ -6,6 +6,7 @@ export type RecurrenceScope = 'once' | 'all'
 interface RecurrenceScopeDialogProps {
   title: string
   subject: string
+  recurrence: 'weekly' | 'yearly'
   onChoose: (scope: RecurrenceScope) => Promise<void>
   onCancel: () => void
 }
@@ -17,6 +18,7 @@ interface RecurrenceScopeDialogProps {
 export function RecurrenceScopeDialog({
   title,
   subject,
+  recurrence,
   onChoose,
   onCancel
 }: RecurrenceScopeDialogProps): React.JSX.Element {
@@ -90,7 +92,9 @@ export function RecurrenceScopeDialog({
           <span className={styles.choiceLabel}>
             {busy === 'once' ? 'Enregistrement…' : 'Cette fois seulement'}
           </span>
-          <span className={styles.choiceHint}>Seule cette semaine change.</span>
+          <span className={styles.choiceHint}>
+            {recurrence === 'yearly' ? 'Seule cette année change.' : 'Seule cette semaine change.'}
+          </span>
         </button>
 
         <button
@@ -100,9 +104,17 @@ export function RecurrenceScopeDialog({
           onClick={() => void choose('all')}
         >
           <span className={styles.choiceLabel}>
-            {busy === 'all' ? 'Enregistrement…' : 'Toutes les semaines'}
+            {busy === 'all'
+              ? 'Enregistrement…'
+              : recurrence === 'yearly'
+                ? 'Toutes les années'
+                : 'Toutes les semaines'}
           </span>
-          <span className={styles.choiceHint}>Le modèle de semaine type est modifié.</span>
+          <span className={styles.choiceHint}>
+            {recurrence === 'yearly'
+              ? 'Le modèle annuel est modifié.'
+              : 'Le modèle de semaine type est modifié.'}
+          </span>
         </button>
       </div>
 

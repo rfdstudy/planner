@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { listInboxTasks } from '../src/core/inbox'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import { PlannerDatabase } from '../src/db/database'
 import { createRepositories, type Repositories } from '../src/db/repositories'
 
@@ -10,7 +11,7 @@ let databaseSequence = 0
 
 async function createTask(overrides: { estimateMin?: number | null } = {}): Promise<string> {
   const item = await repositories.items.create({
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'DM Maths',
     estimateMin: overrides.estimateMin ?? null
   })
@@ -29,13 +30,14 @@ async function createBlock(
 }
 
 async function inboxIds(): Promise<string[]> {
-  const [items, blocks, categories] = await Promise.all([
+  const [items, blocks, categories, itemTypes] = await Promise.all([
     repositories.items.list(),
     repositories.blocks.list(),
-    repositories.categories.list()
+    repositories.categories.list(),
+    repositories.itemTypes.list()
   ])
 
-  return listInboxTasks(items, blocks, categories).map((task) => task.item.id)
+  return listInboxTasks(items, blocks, categories, itemTypes).map((task) => task.item.id)
 }
 
 beforeEach(() => {
@@ -160,7 +162,10 @@ describe('placement d’une tâche', () => {
   })
 
   it('refuse un élément qui n’est pas une tâche', async () => {
-    const fixed = await repositories.items.create({ kind: 'fixed', title: 'Déjeuner' })
+    const fixed = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
+      title: 'Déjeuner'
+    })
 
     await expect(
       repositories.planning.placeTask({

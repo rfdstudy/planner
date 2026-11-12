@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildCalendarIcs, escapeIcsText, foldIcsLine } from '../src/core/ics'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import type { Block, Category, Item, Override, Template } from '../src/core/types'
 
 const TIMESTAMP = new Date(Date.UTC(2026, 10, 11, 20, 0, 0))
@@ -25,7 +26,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     createdAt: '2026-11-11T09:00:00.000Z',
     updatedAt: '2026-11-11T09:00:00.000Z',
     deletedAt: null,
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Réviser les suites',
     notes: 'Chapitre 2, exercices 4 à 7',
     categoryId: 'category-1',
@@ -56,7 +57,7 @@ function makeTemplate(overrides: Partial<Template> = {}): Template {
     createdAt: '2026-11-11T09:00:00.000Z',
     updatedAt: '2026-11-11T09:00:00.000Z',
     deletedAt: null,
-    kind: 'fixed',
+    typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
     title: 'Cours de maths',
     categoryId: 'category-1',
     rrule: 'FREQ=WEEKLY;BYDAY=MO,WE',
@@ -77,6 +78,7 @@ function makeOverride(overrides: Partial<Override> = {}): Override {
     templateId: 'template-1',
     date: '2026-11-11',
     action: 'skip',
+    typeId: null,
     title: null,
     categoryId: null,
     startMin: null,
@@ -108,7 +110,13 @@ describe('export iCalendar', () => {
 
   it('exporte une épreuve sans heure comme une journée entière', () => {
     const ics = buildCalendarIcs({
-      items: [makeItem({ kind: 'exam', title: 'DS de maths', categoryId: null })],
+      items: [
+        makeItem({
+          typeId: DEFAULT_ITEM_TYPE_IDS.exam,
+          title: 'DS de maths',
+          categoryId: null
+        })
+      ],
       blocks: [makeBlock({ startMin: null })],
       templates: [],
       overrides: [],

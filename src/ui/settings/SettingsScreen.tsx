@@ -38,10 +38,11 @@ function formatBackupDate(value: string): string {
 }
 
 function describeBackup(backup: PlannerBackup): string {
-  const { categories, items, blocks, templates, settings } = backup.data
+  const { categories, itemTypes, items, blocks, templates, settings } = backup.data
 
   return [
     `${categories.length} catégorie${categories.length > 1 ? 's' : ''}`,
+    `${itemTypes.length} type${itemTypes.length > 1 ? 's' : ''}`,
     `${items.length} élément${items.length > 1 ? 's' : ''}`,
     `${blocks.length} bloc${blocks.length > 1 ? 's' : ''}`,
     `${templates.length} modèle${templates.length > 1 ? 's' : ''}`,

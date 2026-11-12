@@ -9,6 +9,7 @@ import {
   resolveDragPoint,
   type ColumnBounds
 } from '../../core/drag'
+import { itemTypeAccentColor } from '../../core/itemTypes'
 import type { InboxTask } from '../../core/inbox'
 import { getFreeSlots, type FreeSlot } from '../../core/schedule'
 import { MINUTES_PER_DAY } from '../../core/time'
@@ -436,7 +437,13 @@ export function useScheduleDrag({
         grabOffsetMin,
         title: kind === 'create' ? (task?.item.title ?? '') : (entry?.item.title ?? ''),
         categoryColor:
-          kind === 'create' ? (task?.category?.color ?? null) : (entry?.category?.color ?? null)
+          kind === 'create'
+            ? task === null
+              ? null
+              : itemTypeAccentColor(task.type, task.category?.color ?? null)
+            : entry === null
+              ? null
+              : itemTypeAccentColor(entry.type, entry.category?.color ?? null)
       }
 
       pendingRef.current = pending

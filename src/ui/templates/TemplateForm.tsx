@@ -3,8 +3,10 @@ import {
   WEEKDAY_CODES,
   buildWeeklyRrule,
   weekdayCodeFromDate,
+  type RecurrenceKind,
   type WeekdayCode
 } from '../../core/recurrence'
+import { firstNonTaskType, sortActiveItemTypes } from '../../core/itemTypes'
 import {
   MINUTES_PER_DAY,
   formatDurationMinutes,
@@ -15,7 +17,7 @@ import {
   timeToMinutes,
   todayLocalDate
 } from '../../core/time'
-import type { Category, CategoryGroup, TemplateKind } from '../../core/types'
+import type { Category, CategoryGroup, ItemType } from '../../core/types'
 import { usePreferencesStore } from '../../state/preferences'
 import { categoryColorStyle } from '../categoryColorStyle'
 import styles from './TemplateForm.module.css'
@@ -30,15 +32,11 @@ const WEEKDAY_LABELS: Readonly<Record<WeekdayCode, string>> = {
   SU: 'Dim'
 }
 
-const KIND_OPTIONS: ReadonlyArray<{ value: TemplateKind; label: string }> = [
-  { value: 'fixed', label: 'Fixe' },
-  { value: 'free', label: 'Libre' }
-]
-
 export interface TemplateFormValues {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
+  recurrence: RecurrenceKind
   days: WeekdayCode[]
   startMin: number
   durationMin: number
@@ -47,9 +45,10 @@ export interface TemplateFormValues {
 }
 
 export interface TemplateFormInitialValues {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
+  recurrence: RecurrenceKind
   days: WeekdayCode[]
   startMin: number
   durationMin: number
@@ -60,6 +59,7 @@ export interface TemplateFormInitialValues {
 interface TemplateFormProps {
   mode: 'create' | 'edit'
   initial?: TemplateFormInitialValues
+  itemTypes: readonly ItemType[]
   categories: readonly Category[]
   categoryGroups: readonly CategoryGroup[]
   onSubmit: (values: TemplateFormValues) => Promise<void>
@@ -72,11 +72,18 @@ interface CategorySection {
   categories: Category[]
 }
 
-function defaultInitialValues(weekStartsOn: number): TemplateFormInitialValues {
+function defaultInitialValues(
+  itemTypes: readonly ItemType[],
+  weekStartsOn: number
+): TemplateFormInitialValues {
+  const activeTypes = sortActiveItemTypes(itemTypes)
+  const defaultType = firstNonTaskType(activeTypes) ?? activeTypes[0] ?? null
+
   return {
-    kind: 'fixed',
+    typeId: defaultType?.id ?? '',
     title: '',
     categoryId: null,
+    recurrence: 'weekly',
     days: [weekdayCodeFromDate(todayLocalDate())],
     startMin: 8 * 60,
     durationMin: 60,
@@ -88,15 +95,17 @@ function defaultInitialValues(weekStartsOn: number): TemplateFormInitialValues {
 export function TemplateForm({
   mode,
   initial,
+  itemTypes,
   categories,
   categoryGroups,
   onSubmit,
   onCancel
 }: TemplateFormProps): React.JSX.Element {
   const preferences = usePreferencesStore((state) => state.preferences)
-  const start = initial ?? defaultInitialValues(preferences.weekStartsOn)
+  const start = initial ?? defaultInitialValues(itemTypes, preferences.weekStartsOn)
   const [title, setTitle] = useState(start.title)
-  const [kind, setKind] = useState<TemplateKind>(start.kind)
+  const [typeId, setTypeId] = useState(start.typeId)
+  const [recurrence, setRecurrence] = useState<RecurrenceKind>(start.recurrence)
   const [categoryId, setCategoryId] = useState<string | null>(start.categoryId)
   const [days, setDays] = useState<WeekdayCode[]>(start.days)
   const [time, setTime] = useState(minutesToTime(start.startMin))
@@ -107,6 +116,17 @@ export function TemplateForm({
   const [saving, setSaving] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
 
+  const activeTypes = itemTypes
+    .filter((type) => type.archivedAt === null)
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'fr'))
+  const selectedType = itemTypes.find((type) => type.id === typeId) ?? null
+  const typeOptions =
+    selectedType !== null &&
+    selectedType.archivedAt !== null &&
+    !activeTypes.some((type) => type.id === selectedType.id)
+      ? [...activeTypes, selectedType]
+      : activeTypes
+  const topLine = selectedType?.placement === 'topLine'
   const activeCategories = categories.filter((category) => category.archivedAt === null)
   const selectedCategory = categories.find((category) => category.id === categoryId) ?? null
   const archivedCurrent =
@@ -148,7 +168,12 @@ export function TemplateForm({
       return
     }
 
-    if (days.length === 0) {
+    if (typeId.length === 0 || !itemTypes.some((type) => type.id === typeId)) {
+      setError('Choisissez un type pour le modèle.')
+      return
+    }
+
+    if (recurrence === 'weekly' && days.length === 0) {
       setError('Choisissez au moins un jour de la semaine.')
       return
     }
@@ -198,12 +223,14 @@ export function TemplateForm({
       }
     }
 
-    // Construit la règle ici pour valider les jours avant l'écriture.
-    try {
-      buildWeeklyRrule(days)
-    } catch {
-      setError('Choisissez au moins un jour de la semaine.')
-      return
+    if (recurrence === 'weekly') {
+      // Valide les jours avant l'écriture.
+      try {
+        buildWeeklyRrule(days)
+      } catch {
+        setError('Choisissez au moins un jour de la semaine.')
+        return
+      }
     }
 
     setError(null)
@@ -211,10 +238,11 @@ export function TemplateForm({
 
     try {
       await onSubmit({
-        kind,
+        typeId,
         title: trimmedTitle,
         categoryId,
-        days,
+        recurrence,
+        days: recurrence === 'yearly' ? [] : days,
         startMin,
         durationMin: parsedDuration,
         validFrom,
@@ -236,7 +264,7 @@ export function TemplateForm({
             className={styles.control}
             type="text"
             value={title}
-            placeholder="Cours, repas, sport…"
+            placeholder="Cours, repas, anniversaire…"
             aria-label="Titre du modèle"
             maxLength={200}
             autoFocus
@@ -252,14 +280,17 @@ export function TemplateForm({
           <span className={styles.label}>Type</span>
           <select
             className={styles.control}
-            value={kind}
+            value={typeId}
             aria-label="Type de bloc"
             disabled={saving}
-            onChange={(event) => setKind(event.target.value as TemplateKind)}
+            onChange={(event) => {
+              setTypeId(event.target.value)
+              setError(null)
+            }}
           >
-            {KIND_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {typeOptions.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
               </option>
             ))}
           </select>
@@ -317,48 +348,84 @@ export function TemplateForm({
         </label>
       </div>
 
-      <fieldset className={styles.daysField}>
-        <legend className={styles.label}>Jours</legend>
-        <div className={styles.dayOptions}>
-          {WEEKDAY_CODES.map((day) => {
-            const checked = days.includes(day)
-
-            return (
-              <label
-                className={
-                  checked ? `${styles.dayOption} ${styles.dayOptionActive}` : styles.dayOption
-                }
-                key={day}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={saving}
-                  onChange={() => toggleDay(day)}
-                />
-                {WEEKDAY_LABELS[day]}
-              </label>
-            )
-          })}
-        </div>
-      </fieldset>
-
-      <div className={styles.scheduleRow}>
-        <label className={`${styles.field} ${styles.timeField}`}>
-          <span className={styles.label}>Heure</span>
-          <input
+      <div className={styles.recurrenceRow}>
+        <label className={`${styles.field} ${styles.recurrenceField}`}>
+          <span className={styles.label}>Récurrence</span>
+          <select
             className={styles.control}
-            type="time"
-            step={preferences.dragStepMin * 60}
-            value={time}
-            aria-label="Heure de début"
+            value={recurrence}
+            aria-label="Récurrence"
             disabled={saving}
             onChange={(event) => {
-              setTime(event.target.value)
+              setRecurrence(event.target.value as RecurrenceKind)
               setError(null)
             }}
-          />
+          >
+            <option value="weekly">Chaque semaine</option>
+            <option value="yearly">Chaque année</option>
+          </select>
         </label>
+
+        {recurrence === 'yearly' && (
+          <p className={styles.recurrenceHint}>
+            Le jour et le mois de la date de début deviennent la date anniversaire. Le 29 février
+            n’apparaît que les années bissextiles.
+          </p>
+        )}
+      </div>
+
+      {recurrence === 'weekly' && (
+        <fieldset className={styles.daysField}>
+          <legend className={styles.label}>Jours</legend>
+          <div className={styles.dayOptions}>
+            {WEEKDAY_CODES.map((day) => {
+              const checked = days.includes(day)
+
+              return (
+                <label
+                  className={
+                    checked ? `${styles.dayOption} ${styles.dayOptionActive}` : styles.dayOption
+                  }
+                  key={day}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={saving}
+                    onChange={() => toggleDay(day)}
+                  />
+                  {WEEKDAY_LABELS[day]}
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
+      )}
+
+      <div className={styles.scheduleRow}>
+        {!topLine && (
+          <label className={`${styles.field} ${styles.timeField}`}>
+            <span className={styles.label}>Heure</span>
+            <input
+              className={styles.control}
+              type="time"
+              step={preferences.dragStepMin * 60}
+              value={time}
+              aria-label="Heure de début"
+              disabled={saving}
+              onChange={(event) => {
+                setTime(event.target.value)
+                setError(null)
+              }}
+            />
+          </label>
+        )}
+
+        {topLine && (
+          <p className={styles.recurrenceHint}>
+            Ce type est placé par défaut sur la ligne du haut, en journée entière.
+          </p>
+        )}
 
         <label className={`${styles.field} ${styles.durationField}`}>
           <span className={styles.label}>Durée</span>
@@ -387,7 +454,9 @@ export function TemplateForm({
         </span>
 
         <label className={`${styles.field} ${styles.dateField}`}>
-          <span className={styles.label}>Valable à partir du</span>
+          <span className={styles.label}>
+            {recurrence === 'yearly' ? 'Date annuelle de départ' : 'Valable à partir du'}
+          </span>
           <input
             className={styles.control}
             type="date"

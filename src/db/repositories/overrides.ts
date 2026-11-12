@@ -7,6 +7,7 @@ export interface CreateOverrideInput {
   templateId: string
   date: LocalDate
   action: OverrideAction
+  typeId?: string | null
   title?: string | null
   categoryId?: string | null
   startMin?: number | null
@@ -16,6 +17,7 @@ export interface CreateOverrideInput {
 export interface ModifyOverrideInput {
   templateId: string
   date: LocalDate
+  typeId: string
   title: string
   categoryId: string | null
   startMin: number
@@ -64,6 +66,7 @@ export class OverrideRepository extends BaseRepository<Override> {
       templateId: input.templateId,
       date: input.date,
       action: input.action,
+      typeId: input.typeId ?? null,
       title: input.title ?? null,
       categoryId: input.categoryId ?? null,
       startMin: input.startMin ?? null,
@@ -94,6 +97,7 @@ export class OverrideRepository extends BaseRepository<Override> {
     const existing = await this.findActive(templateId, date)
     const values = {
       action: 'skip' as const,
+      typeId: null,
       title: null,
       categoryId: null,
       startMin: null,
@@ -118,6 +122,7 @@ export class OverrideRepository extends BaseRepository<Override> {
     const existing = await this.findActive(input.templateId, input.date)
     const values = {
       action: 'modify' as const,
+      typeId: input.typeId,
       title: input.title.trim(),
       categoryId: input.categoryId,
       startMin: input.startMin,

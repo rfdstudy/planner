@@ -1,3 +1,4 @@
+import { ITEM_TYPES_INITIALIZED_SETTING_KEY } from '../core/itemTypes'
 import type { Repositories } from './repositories'
 
 /** Réglage retenant que l'écran de bienvenue a été vu (ou passé). */
@@ -56,6 +57,13 @@ export async function finishOnboarding(
 }
 
 async function initializeApplication(repositories: Repositories): Promise<ApplicationStartup> {
+  const typesInitialized = await repositories.settings.getByKey(ITEM_TYPES_INITIALIZED_SETTING_KEY)
+
+  if (typesInitialized === undefined) {
+    await repositories.itemTypes.ensureDefaults()
+    await repositories.settings.setValue(ITEM_TYPES_INITIALIZED_SETTING_KEY, true)
+  }
+
   const groupsInitialized = await repositories.settings.getByKey(GROUPS_INITIALIZED_SETTING_KEY)
 
   if (groupsInitialized === undefined) {

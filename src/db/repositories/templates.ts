@@ -1,11 +1,11 @@
-import type { Table } from 'dexie'
-import { parseWeeklyDays } from '../../core/recurrence'
+import { getRecurrenceKind, parseWeeklyDays } from '../../core/recurrence'
 import { MINUTES_PER_DAY, isLocalDate } from '../../core/time'
-import type { LocalDate, Template, TemplateKind } from '../../core/types'
-import { BaseRepository, type EntityData } from './base'
+import type { ItemType, LocalDate, Template } from '../../core/types'
+import type { PlannerDatabase } from '../database'
+import { BaseRepository, RecordDeletedError, RecordNotFoundError, type EntityData } from './base'
 
 export interface TemplateDetailsInput {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId?: string | null
   rrule: string
@@ -25,8 +25,8 @@ function validateTemplateDetails(input: TemplateDetailsInput): EntityData<Templa
     throw new RangeError('Donnez un titre au modèle.')
   }
 
-  if (input.kind !== 'fixed' && input.kind !== 'free') {
-    throw new RangeError('Le type du modèle doit être « fixe » ou « libre ».')
+  if (input.typeId.trim().length === 0) {
+    throw new RangeError('Choisissez un type pour le modèle.')
   }
 
   if (!isLocalDate(input.validFrom)) {
@@ -63,12 +63,18 @@ function validateTemplateDetails(input: TemplateDetailsInput): EntityData<Templa
     throw new RangeError('Le bloc dépasserait minuit.')
   }
 
-  if (parseWeeklyDays(input.rrule).length === 0) {
+  const recurrence = getRecurrenceKind(input.rrule)
+
+  if (recurrence === null) {
+    throw new RangeError('La règle doit être hebdomadaire ou annuelle.')
+  }
+
+  if (recurrence === 'weekly' && parseWeeklyDays(input.rrule).length === 0) {
     throw new RangeError('Choisissez au moins un jour de la semaine.')
   }
 
   return {
-    kind: input.kind,
+    typeId: input.typeId,
     title,
     categoryId: input.categoryId ?? null,
     rrule: input.rrule.trim(),
@@ -80,16 +86,32 @@ function validateTemplateDetails(input: TemplateDetailsInput): EntityData<Templa
 }
 
 export class TemplateRepository extends BaseRepository<Template> {
-  constructor(table: Table<Template, string>) {
-    super(table, 'Modèle')
+  constructor(private readonly database: PlannerDatabase) {
+    super(database.templates, 'Modèle')
   }
 
   async create(input: CreateTemplateInput): Promise<Template> {
+    await this.requireType(input.typeId)
     return this.insert(validateTemplateDetails(input))
   }
 
   /** Modifie tous les champs d'un modèle depuis l'écran « Semaine type ». */
   async updateDetails(id: string, input: UpdateTemplateInput): Promise<Template> {
+    await this.requireType(input.typeId)
     return this.update(id, validateTemplateDetails(input))
+  }
+
+  private async requireType(typeId: string): Promise<ItemType> {
+    const type = await this.database.itemTypes.get(typeId)
+
+    if (type === undefined) {
+      throw new RecordNotFoundError('Type d’élément', typeId)
+    }
+
+    if (type.deletedAt !== null) {
+      throw new RecordDeletedError('Type d’élément', typeId)
+    }
+
+    return type
   }
 }

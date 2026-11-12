@@ -1,5 +1,5 @@
 import { DEFAULT_ELEMENT_DURATION_MIN, validateTaskDraft, type TaskDraft } from './elementEditor'
-import type { Block, Category, Item } from './types'
+import type { Block, Category, Item, ItemType } from './types'
 
 /**
  * Durée affichée pour une tâche sans estimation qui n'a encore aucun bloc.
@@ -7,9 +7,10 @@ import type { Block, Category, Item } from './types'
  */
 export const DEFAULT_TASK_DURATION_MIN = DEFAULT_ELEMENT_DURATION_MIN
 
-/** Tâche encore à planifier, avec sa catégorie et son temps restant. */
+/** Tâche encore à planifier, avec son type, sa catégorie et son temps restant. */
 export interface InboxTask {
   item: Item
+  type: ItemType
   category: Category | null
   remainingMin: number
 }
@@ -54,10 +55,15 @@ export function getRemainingTaskMinutes(
 
 /**
  * Une tâche reste dans « À planifier » tant que ses blocs ne couvrent pas sa
- * durée estimée. Sans estimation, le premier bloc la fait sortir.
+ * durée estimée. Sans estimation, le premier bloc la fait sortir. Seuls les
+ * éléments dont le type est marqué « tâche » peuvent y figurer.
  */
-export function isTaskInInbox(item: Item, blocks: readonly DurableBlock[]): boolean {
-  if (item.kind !== 'task') return false
+export function isTaskInInbox(
+  item: Item,
+  blocks: readonly DurableBlock[],
+  type: ItemType | undefined
+): boolean {
+  if (type === undefined || !type.isTask) return false
 
   if (item.estimateMin === null) {
     return blocks.length === 0
@@ -75,9 +81,11 @@ export function listInboxTasks(
   items: readonly Item[],
   blocks: readonly Block[],
   categories: readonly Category[],
+  itemTypes: readonly ItemType[],
   defaultTaskDurationMin: number = DEFAULT_TASK_DURATION_MIN
 ): InboxTask[] {
   const blocksByItem = new Map<string, Block[]>()
+  const typesById = new Map(itemTypes.map((type) => [type.id, type]))
 
   for (const block of blocks) {
     const itemBlocks = blocksByItem.get(block.itemId)
@@ -92,17 +100,30 @@ export function listInboxTasks(
   const categoriesById = new Map(categories.map((category) => [category.id, category]))
 
   return items
-    .filter((item) => isTaskInInbox(item, blocksByItem.get(item.id) ?? []))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
-    .map((item) => ({
-      item,
-      category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
-      remainingMin: getRemainingTaskMinutes(
-        item,
-        blocksByItem.get(item.id) ?? [],
-        defaultTaskDurationMin
-      )
-    }))
+    .flatMap((item) => {
+      const type = typesById.get(item.typeId)
+
+      if (!isTaskInInbox(item, blocksByItem.get(item.id) ?? [], type) || type === undefined) {
+        return []
+      }
+
+      return [
+        {
+          item,
+          type,
+          category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
+          remainingMin: getRemainingTaskMinutes(
+            item,
+            blocksByItem.get(item.id) ?? [],
+            defaultTaskDurationMin
+          )
+        }
+      ]
+    })
+    .sort(
+      (a, b) =>
+        a.item.createdAt.localeCompare(b.item.createdAt) || a.item.id.localeCompare(b.item.id)
+    )
 }
 
 /** Vérifie le formulaire d'ajout rapide du panneau. */

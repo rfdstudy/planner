@@ -1,6 +1,11 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { computeOccurrences, type TemplateOccurrence } from '../src/core/recurrence'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
+import {
+  buildYearlyRrule,
+  computeOccurrences,
+  type TemplateOccurrence
+} from '../src/core/recurrence'
 import type { Template } from '../src/core/types'
 import { PlannerDatabase } from '../src/db/database'
 import { createRepositories, type Repositories } from '../src/db/repositories'
@@ -25,7 +30,7 @@ afterEach(async () => {
 
 async function createTemplate(): Promise<Template> {
   return repositories.templates.create({
-    kind: 'fixed',
+    typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
     title: 'Cours',
     categoryId: null,
     rrule: 'FREQ=WEEKLY;BYDAY=MO,WE',
@@ -52,7 +57,7 @@ describe('semaine type : cette fois seulement', () => {
     await repositories.recurrence.editOccurrenceOnce({
       templateId: template.id,
       date: WEDNESDAY,
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours décalé',
       categoryId: null,
       startMin: 10 * 60,
@@ -92,7 +97,7 @@ describe('semaine type : cette fois seulement', () => {
       templateId: template.id,
       date: MONDAY,
       targetDate: '2026-11-10',
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours',
       categoryId: null,
       startMin: 14 * 60,
@@ -124,7 +129,7 @@ describe('semaine type : toutes les semaines', () => {
       templateId: template.id,
       date: MONDAY,
       targetDate: MONDAY,
-      kind: 'free',
+      typeId: DEFAULT_ITEM_TYPE_IDS.free,
       title: 'Sport',
       categoryId: null,
       startMin: 18 * 60,
@@ -133,7 +138,7 @@ describe('semaine type : toutes les semaines', () => {
 
     const updated = await repositories.templates.get(template.id)
     expect(updated).toMatchObject({
-      kind: 'free',
+      typeId: DEFAULT_ITEM_TYPE_IDS.free,
       title: 'Sport',
       startMin: 1080,
       durationMin: 60
@@ -164,7 +169,7 @@ describe('semaine type : toutes les semaines', () => {
       templateId: template.id,
       date: MONDAY,
       targetDate: '2026-11-10',
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours',
       categoryId: null,
       startMin: 9 * 60,
@@ -178,5 +183,59 @@ describe('semaine type : toutes les semaines', () => {
       '2026-11-10',
       WEDNESDAY
     ])
+  })
+
+  it('conserve la date anniversaire quand seul le contenu d’un modèle annuel change', async () => {
+    const template = await repositories.templates.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Anniversaire',
+      rrule: buildYearlyRrule(),
+      startMin: 8 * 60,
+      durationMin: 60,
+      validFrom: '2024-02-29',
+      validUntil: null
+    })
+
+    await repositories.recurrence.updateOccurrenceEveryWeek({
+      templateId: template.id,
+      date: '2028-02-29',
+      targetDate: '2028-02-29',
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Anniversaire de Léa',
+      categoryId: null,
+      startMin: 8 * 60,
+      durationMin: 60
+    })
+
+    const updated = await repositories.templates.get(template.id)
+    expect(updated?.validFrom).toBe('2024-02-29')
+    expect(updated?.title).toBe('Anniversaire de Léa')
+  })
+
+  it('déplace la date anniversaire sans perdre l’année de départ', async () => {
+    const template = await repositories.templates.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Fête',
+      rrule: buildYearlyRrule(),
+      startMin: 8 * 60,
+      durationMin: 60,
+      validFrom: '2024-02-29',
+      validUntil: null
+    })
+
+    await repositories.recurrence.updateOccurrenceEveryWeek({
+      templateId: template.id,
+      date: '2028-02-29',
+      targetDate: '2028-03-01',
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Fête',
+      categoryId: null,
+      startMin: 8 * 60,
+      durationMin: 60
+    })
+
+    const updated = await repositories.templates.get(template.id)
+    expect(updated?.validFrom).toBe('2024-03-01')
+    expect(updated?.rrule).toBe('FREQ=YEARLY')
   })
 })

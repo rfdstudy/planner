@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWeeklyRrule,
+  buildYearlyRrule,
   computeOccurrences,
   occurrenceId,
   occurrencesForTemplate,
@@ -9,6 +10,7 @@ import {
   replaceWeekdayInRrule,
   weekdayCodeFromDate
 } from '../src/core/recurrence'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import type { LocalDate, Override, Template } from '../src/core/types'
 
 const TIMESTAMP = '2026-11-01T10:00:00.000Z'
@@ -16,7 +18,7 @@ const TIMESTAMP = '2026-11-01T10:00:00.000Z'
 function makeTemplate(overrides: Partial<Template> = {}): Template {
   return {
     id: 'template-1',
-    kind: 'fixed',
+    typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
     title: 'Cours',
     categoryId: null,
     rrule: 'FREQ=WEEKLY;BYDAY=MO,WE',
@@ -37,6 +39,7 @@ function makeOverride(overrides: Partial<Override> = {}): Override {
     templateId: 'template-1',
     date: '2026-11-04',
     action: 'skip',
+    typeId: null,
     title: null,
     categoryId: null,
     startMin: null,
@@ -88,7 +91,7 @@ describe('occurrences d’un modèle', () => {
     ])
     expect(occurrences[0]).toMatchObject({
       templateId: 'template-1',
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours',
       startMin: 480,
       durationMin: 120,
@@ -168,5 +171,68 @@ describe('occurrences d’un modèle', () => {
       computeOccurrences([makeTemplate({ deletedAt: '2026-11-01T10:00:00.000Z' })], [], WEEK)
     ).toEqual([])
     expect(computeOccurrences([makeTemplate({ rrule: 'PAS UNE RRULE' })], [], WEEK)).toEqual([])
+  })
+})
+
+describe('récurrence annuelle', () => {
+  it('calcule une occurrence chaque année à la même date', () => {
+    const template = makeTemplate({
+      rrule: buildYearlyRrule(),
+      validFrom: '2026-11-11',
+      title: 'Anniversaire'
+    })
+
+    const occurrences = occurrencesForTemplate(template, [], {
+      start: '2026-01-01',
+      end: '2028-12-31'
+    })
+
+    expect(occurrences.map((occurrence) => occurrence.date)).toEqual([
+      '2026-11-11',
+      '2027-11-11',
+      '2028-11-11'
+    ])
+  })
+
+  it('gère le 29 février : occurrence uniquement les années bissextiles', () => {
+    const template = makeTemplate({
+      rrule: buildYearlyRrule(),
+      validFrom: '2024-02-29',
+      title: 'Anniversaire bissextile'
+    })
+
+    const occurrences = occurrencesForTemplate(template, [], {
+      start: '2025-01-01',
+      end: '2029-12-31'
+    })
+
+    expect(occurrences.map((occurrence) => occurrence.date)).toEqual(['2028-02-29'])
+  })
+
+  it('applique une exception de type sur une occurrence annuelle', () => {
+    const template = makeTemplate({
+      rrule: buildYearlyRrule(),
+      validFrom: '2026-11-11'
+    })
+    const override = makeOverride({
+      action: 'modify',
+      date: '2027-11-11',
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Fête',
+      categoryId: null,
+      startMin: 0,
+      durationMin: 60
+    })
+
+    const occurrences = occurrencesForTemplate(template, [override], {
+      start: '2026-01-01',
+      end: '2027-12-31'
+    })
+
+    expect(occurrences[1]).toMatchObject({
+      date: '2027-11-11',
+      typeId: DEFAULT_ITEM_TYPE_IDS.event,
+      title: 'Fête'
+    })
   })
 })

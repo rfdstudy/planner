@@ -7,7 +7,18 @@ import {
   type ElementDraft,
   type ElementDraftValues
 } from '../../core/elementEditor'
-import { computeOccurrences, type TemplateOccurrence } from '../../core/recurrence'
+import {
+  fallbackItemType,
+  firstNonTaskType,
+  firstTaskType,
+  itemTypeAccentColor,
+  sortActiveItemTypes
+} from '../../core/itemTypes'
+import {
+  computeOccurrences,
+  getRecurrenceKind,
+  type TemplateOccurrence
+} from '../../core/recurrence'
 import { layoutBlocks } from '../../core/schedule'
 import {
   MINUTES_PER_DAY,
@@ -27,10 +38,10 @@ import type {
   Category,
   CategoryGroup,
   Item,
+  ItemType,
   LocalDate,
   Override,
-  Template,
-  TemplateKind
+  Template
 } from '../../core/types'
 import { loadDemoWeek } from '../../db/demoWeek'
 import type { UndoAction } from '../../db/history'
@@ -84,7 +95,7 @@ type RecurrenceScopeRequest =
 
 /** Valeurs d'une occurrence virtuelle, telles que les repositories les attendent. */
 interface OccurrenceFormValues {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
   startMin: number
@@ -110,6 +121,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const showCalendar = useUiStore((state) => state.showCalendar)
   const setView = useUiStore((state) => state.setView)
   const openCategories = useUiStore((state) => state.openCategories)
+  const openTypes = useUiStore((state) => state.openTypes)
   const openTemplates = useUiStore((state) => state.openTemplates)
   const openSettings = useUiStore((state) => state.openSettings)
   const openPalette = useUiStore((state) => state.openPalette)
@@ -146,6 +158,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
     return byDate
   }, [data])
+  const itemTypes = useMemo(() => data?.itemTypes ?? [], [data])
   const daysRef = useRef<HTMLDivElement>(null)
   const drag = useScheduleDrag({
     scrollRef,
@@ -171,7 +184,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
   const today = todayLocalDate(now)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const hasExamLine = days.some((date) => (daysData.get(date)?.exams.length ?? 0) > 0)
+  const hasTopLineRow = days.some((date) => (daysData.get(date)?.topLine.length ?? 0) > 0)
   const statusMessage = loadError
     ? 'La période n’a pas pu être chargée.'
     : demoError !== null
@@ -183,19 +196,22 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     const end = days[days.length - 1]
 
     const subscription = liveQuery(async () => {
-      const [blocks, items, categories, categoryGroups, templates, overrides] = await Promise.all([
-        repositories.blocks.listBetween(start, end),
-        repositories.items.list(),
-        repositories.categories.list(),
-        repositories.categoryGroups.list(),
-        repositories.templates.list(),
-        repositories.overrides.list()
-      ])
+      const [blocks, items, itemTypes, categories, categoryGroups, templates, overrides] =
+        await Promise.all([
+          repositories.blocks.listBetween(start, end),
+          repositories.items.list(),
+          repositories.itemTypes.list(),
+          repositories.categories.list(),
+          repositories.categoryGroups.list(),
+          repositories.templates.list(),
+          repositories.overrides.list()
+        ])
 
       return buildScheduleData(
         days,
         blocks,
         items,
+        itemTypes,
         categories,
         categoryGroups,
         templates,
@@ -234,6 +250,17 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
   const openNewElement = useCallback(
     (kind: CreationKind): void => {
+      const activeTypes = sortActiveItemTypes(itemTypes)
+      const type =
+        kind === 'task'
+          ? firstTaskType(activeTypes)
+          : (firstNonTaskType(activeTypes) ?? firstTaskType(activeTypes) ?? activeTypes[0] ?? null)
+
+      if (type === null) {
+        setActionError('Créez d’abord un type d’élément dans l’écran Types.')
+        return
+      }
+
       const reference = new Date()
       const referenceDate = todayLocalDate(reference)
       const date = days.includes(referenceDate) ? referenceDate : days[0]
@@ -253,12 +280,12 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         mode: 'create',
         anchor: { x: Math.max(12, window.innerWidth / 2 - 174), y: 96 },
         draft: createNewElementDraft(
-          { date, startMin, kind },
+          { date, startMin, type },
           { taskDurationMin: preferences.defaultTaskDurationMin }
         )
       })
     },
-    [days, preferences.defaultTaskDurationMin, preferences.dragStepMin]
+    [days, itemTypes, preferences.defaultTaskDurationMin, preferences.dragStepMin]
   )
 
   const handleToday = useCallback((): void => {
@@ -368,12 +395,19 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       mode: 'edit',
       entry,
       anchor,
-      draft: elementDraftFrom(entry.item, entry.block)
+      draft: elementDraftFrom(entry.item, entry.block, entry.type)
     })
   }, [])
 
   function handleSlotClick(date: LocalDate, event: React.MouseEvent<HTMLDivElement>): void {
     if (event.button !== 0 || drag.session !== null) return
+
+    const type = firstTaskType(itemTypes)
+
+    if (type === null) {
+      setActionError('Créez d’abord un type d’élément dans l’écran Types.')
+      return
+    }
 
     const rect = event.currentTarget.getBoundingClientRect()
     const startMin = snapNewBlockStart(
@@ -387,7 +421,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       mode: 'create',
       anchor: { x: event.clientX, y: event.clientY },
       draft: createNewElementDraft(
-        { date, startMin },
+        { date, startMin, type },
         { taskDurationMin: preferences.defaultTaskDurationMin }
       )
     })
@@ -467,7 +501,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     if (editor.mode === 'create') {
       await repositories.elements.create({
         item: {
-          kind: values.kind,
+          typeId: values.typeId,
           title: values.title,
           notes: values.notes,
           categoryId: values.categoryId,
@@ -498,7 +532,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         itemId: entry.item.id,
         blockId: entry.block.id,
         item: {
-          kind: values.kind,
+          typeId: values.typeId,
           title: values.title,
           notes: values.notes,
           categoryId: values.categoryId,
@@ -589,7 +623,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     const current = occurrenceValuesFromEntry(entry)
 
     if (request.kind === 'edit') {
-      const values = occurrenceValuesFromDraft(request.values)
+      const values = occurrenceValuesFromDraft(request.values, template.startMin)
       const targetDate = request.values.date
 
       if (scope === 'once') {
@@ -672,6 +706,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         onChangeView={setView}
         onOpenPalette={openPalette}
         onOpenCategories={openCategories}
+        onOpenTypes={openTypes}
         onOpenTemplates={openTemplates}
         onOpenSettings={openSettings}
         onLoadDemo={import.meta.env.DEV ? () => void handleLoadDemo() : undefined}
@@ -708,27 +743,42 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
               })}
             </div>
 
-            {hasExamLine && (
-              <div className={styles.examRow}>
+            {hasTopLineRow && (
+              <div className={styles.topLineRow}>
                 <div className={styles.hourSpacer} />
                 {days.map((date) => (
-                  <div className={styles.examCell} key={date}>
-                    {(daysData.get(date)?.exams ?? []).map((entry) => (
-                      <button
-                        type="button"
-                        className={styles.examPill}
-                        key={entry.block.id}
-                        title={entry.item.title}
-                        onClick={(event) =>
-                          openEntry(entry, { x: event.clientX, y: event.clientY })
-                        }
-                      >
-                        <span className={styles.examPillDot} aria-hidden="true" />
-                        <span className={styles.examPillTitle}>
-                          {entry.item.title} · {formatDaysUntil(entry.block.date, today)}
-                        </span>
-                      </button>
-                    ))}
+                  <div className={styles.topLineCell} key={date}>
+                    {(daysData.get(date)?.topLine ?? []).map((entry) => {
+                      const type = entry.type ?? fallbackItemType(entry.item.typeId)
+                      const accent = itemTypeAccentColor(type, entry.category?.color ?? null)
+
+                      return (
+                        <button
+                          type="button"
+                          className={styles.topLinePill}
+                          data-style={type.style}
+                          data-colored={accent !== null ? '' : undefined}
+                          key={entry.block.id}
+                          title={entry.item.title}
+                          style={
+                            type.style === 'category' && entry.category !== null
+                              ? categoryColorStyle(entry.category.color)
+                              : accent === null
+                                ? undefined
+                                : categoryColorStyle(accent)
+                          }
+                          onClick={(event) =>
+                            openEntry(entry, { x: event.clientX, y: event.clientY })
+                          }
+                        >
+                          <span className={styles.topLinePillDot} aria-hidden="true" />
+                          <span className={styles.topLinePillTitle}>
+                            {entry.item.title}
+                            {type.countdown && ` · ${formatDaysUntil(entry.block.date, today)}`}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
                 ))}
               </div>
@@ -864,6 +914,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
           anchor={editor.anchor}
           categories={data.categories}
           categoryGroups={data.categoryGroups}
+          itemTypes={data.itemTypes}
           snapStepMin={preferences.dragStepMin}
           recurring={editor.mode === 'edit' && editor.entry.template !== null}
           onClose={() => setEditor(null)}
@@ -880,6 +931,11 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
               : 'Ce bloc fait partie de la semaine type'
           }
           subject={describeScopeEntry(scopeRequest.entry)}
+          recurrence={
+            getRecurrenceKind(scopeRequest.entry.template?.rrule ?? '') === 'yearly'
+              ? 'yearly'
+              : 'weekly'
+          }
           onChoose={handleScopeChoose}
           onCancel={handleScopeCancel}
         />
@@ -921,7 +977,7 @@ function deletedTaskMessage(blockCount: number): string {
 
 function sameOccurrenceValues(entry: ScheduleEntry, values: ElementDraftValues): boolean {
   return (
-    values.kind === entry.item.kind &&
+    values.typeId === entry.item.typeId &&
     values.title === entry.item.title &&
     values.categoryId === entry.item.categoryId &&
     values.date === entry.block.date &&
@@ -931,50 +987,52 @@ function sameOccurrenceValues(entry: ScheduleEntry, values: ElementDraftValues):
 }
 
 function occurrenceValuesFromEntry(entry: ScheduleEntry): OccurrenceFormValues {
-  if (entry.block.startMin === null) {
-    throw new RangeError('Une occurrence de semaine type doit avoir une heure.')
-  }
-
   return {
-    kind: entry.item.kind === 'free' ? 'free' : 'fixed',
+    typeId: entry.item.typeId,
     title: entry.item.title,
     categoryId: entry.item.categoryId,
-    startMin: entry.block.startMin,
+    startMin: entry.block.startMin ?? entry.template?.startMin ?? 8 * 60,
     durationMin: entry.block.durationMin
   }
 }
 
-function occurrenceValuesFromDraft(values: ElementDraftValues): OccurrenceFormValues {
-  if (values.startMin === null || (values.kind !== 'fixed' && values.kind !== 'free')) {
-    throw new RangeError('Un bloc de semaine type est soit fixe, soit libre, avec une heure.')
-  }
-
+function occurrenceValuesFromDraft(
+  values: ElementDraftValues,
+  fallbackStartMin: number
+): OccurrenceFormValues {
   return {
-    kind: values.kind,
+    typeId: values.typeId,
     title: values.title,
     categoryId: values.categoryId,
-    startMin: values.startMin,
+    startMin: values.startMin ?? fallbackStartMin,
     durationMin: values.durationMin
   }
 }
 
 function describeScopeEntry(entry: ScheduleEntry): string {
-  const startMin = entry.block.startMin ?? 0
-  const endMin = Math.min(MINUTES_PER_DAY, startMin + entry.block.durationMin)
+  const date = formatLongDate(entry.block.date)
 
-  return `« ${entry.item.title} » · ${formatLongDate(entry.block.date)}, ${minutesToTime(
-    startMin
+  if (entry.block.startMin === null) {
+    return `« ${entry.item.title} » · ${date}, journée entière`
+  }
+
+  const endMin = Math.min(MINUTES_PER_DAY, entry.block.startMin + entry.block.durationMin)
+
+  return `« ${entry.item.title} » · ${date}, ${minutesToTime(
+    entry.block.startMin
   )} – ${minutesToTime(endMin)}`
 }
 
 function virtualEntry(
   occurrence: TemplateOccurrence,
   template: Template,
-  categoriesById: ReadonlyMap<string, Category>
+  categoriesById: ReadonlyMap<string, Category>,
+  typesById: ReadonlyMap<string, ItemType>
 ): ScheduleEntry {
+  const type = typesById.get(occurrence.typeId) ?? fallbackItemType(occurrence.typeId)
   const item: Item = {
     id: occurrence.id,
-    kind: occurrence.kind,
+    typeId: occurrence.typeId,
     title: occurrence.title,
     notes: '',
     categoryId: occurrence.categoryId,
@@ -989,7 +1047,7 @@ function virtualEntry(
     id: occurrence.id,
     itemId: occurrence.id,
     date: occurrence.date,
-    startMin: occurrence.startMin,
+    startMin: type.placement === 'topLine' ? null : occurrence.startMin,
     durationMin: occurrence.durationMin,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
@@ -999,6 +1057,7 @@ function virtualEntry(
   return {
     block,
     item,
+    type,
     category:
       occurrence.categoryId === null ? null : (categoriesById.get(occurrence.categoryId) ?? null),
     template
@@ -1009,6 +1068,7 @@ function buildScheduleData(
   days: readonly LocalDate[],
   blocks: readonly Block[],
   items: readonly Item[],
+  itemTypes: readonly ItemType[],
   categories: readonly Category[],
   categoryGroups: readonly CategoryGroup[],
   templates: readonly Template[],
@@ -1016,6 +1076,7 @@ function buildScheduleData(
 ): ScheduleData {
   const itemsById = new Map(items.map((item) => [item.id, item]))
   const templatesById = new Map(templates.map((template) => [template.id, template]))
+  const typesById = new Map(itemTypes.map((type) => [type.id, type]))
   const categoriesById = new Map(categories.map((category) => [category.id, category]))
   const rangeStart = days[0]
   const rangeEnd = days.at(-1) ?? rangeStart
@@ -1024,6 +1085,7 @@ function buildScheduleData(
   return {
     rangeStart,
     rangeEnd,
+    itemTypes: [...itemTypes],
     categories: [...categories],
     categoryGroups: [...categoryGroups],
     days: days.map((date) => {
@@ -1039,6 +1101,7 @@ function buildScheduleData(
         entries.push({
           block,
           item,
+          type: typesById.get(item.typeId) ?? fallbackItemType(item.typeId),
           category: item.categoryId === null ? null : (categoriesById.get(item.categoryId) ?? null),
           template: null
         })
@@ -1051,11 +1114,11 @@ function buildScheduleData(
 
         if (template === undefined) continue
 
-        entries.push(virtualEntry(occurrence, template, categoriesById))
+        entries.push(virtualEntry(occurrence, template, categoriesById, typesById))
       }
 
-      const exams = entries
-        .filter((entry) => entry.item.kind === 'exam' && entry.block.startMin === null)
+      const topLine = entries
+        .filter((entry) => entry.block.startMin === null)
         .sort((a, b) => a.item.title.localeCompare(b.item.title, 'fr'))
       const timedEntries = entries.filter(
         (entry) => entry.block.startMin !== null && entry.block.durationMin > 0
@@ -1068,7 +1131,7 @@ function buildScheduleData(
         }
       )
 
-      return { date, timed, exams }
+      return { date, timed, topLine }
     })
   }
 }

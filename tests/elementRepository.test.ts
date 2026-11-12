@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import { PlannerDatabase } from '../src/db/database'
 import { RecordNotFoundError, createRepositories, type Repositories } from '../src/db/repositories'
 
@@ -18,7 +19,7 @@ afterEach(async () => {
 })
 
 const ITEM = {
-  kind: 'task' as const,
+  typeId: DEFAULT_ITEM_TYPE_IDS.task,
   title: 'Révisions',
   notes: 'Fiche 5',
   categoryId: null,
@@ -99,7 +100,10 @@ describe('édition d’un élément et de son bloc', () => {
     const done = await repositories.items.setTaskStatus(task.item.id, 'done')
     expect(done.status).toBe('done')
 
-    const fixed = await repositories.items.create({ kind: 'fixed', title: 'Déjeuner' })
+    const fixed = await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
+      title: 'Déjeuner'
+    })
 
     await expect(repositories.items.setTaskStatus(fixed.id, 'done')).rejects.toBeInstanceOf(
       RangeError

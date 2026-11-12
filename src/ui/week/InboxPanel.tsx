@@ -1,10 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { liveQuery } from 'dexie'
 import { DRAG_START_DISTANCE_PX } from '../../core/drag'
+import { firstTaskType, itemTypeAccentColor } from '../../core/itemTypes'
 import { listInboxTasks, validateQuickTaskDraft, type InboxTask } from '../../core/inbox'
 import { taskDraftFrom, type TaskDraft, type TaskDraftValues } from '../../core/elementEditor'
 import { formatDurationMinutes } from '../../core/time'
-import type { Block, Category, CategoryGroup, Item } from '../../core/types'
+import type { Block, Category, CategoryGroup, Item, ItemType } from '../../core/types'
 import { repositories } from '../../db/repositories'
 import type { DeletedTaskResult } from '../../db/repositories/planning'
 import { usePreferencesStore } from '../../state/preferences'
@@ -25,6 +26,7 @@ interface InboxPanelProps {
 interface InboxSnapshot {
   items: Item[]
   blocks: Block[]
+  itemTypes: ItemType[]
   categories: Category[]
   categoryGroups: CategoryGroup[]
 }
@@ -69,9 +71,10 @@ export const InboxPanel = memo(function InboxPanel({
 
   useEffect(() => {
     const subscription = liveQuery(async () => {
-      const [items, blocks, categories, categoryGroups] = await Promise.all([
+      const [items, blocks, itemTypes, categories, categoryGroups] = await Promise.all([
         repositories.items.list(),
         repositories.blocks.list(),
+        repositories.itemTypes.list(),
         repositories.categories.list(),
         repositories.categoryGroups.list()
       ])
@@ -79,6 +82,7 @@ export const InboxPanel = memo(function InboxPanel({
       return {
         items,
         blocks,
+        itemTypes,
         categories,
         categoryGroups
       }
@@ -101,10 +105,13 @@ export const InboxPanel = memo(function InboxPanel({
             snapshot.items,
             snapshot.blocks,
             snapshot.categories,
+            snapshot.itemTypes,
             defaultTaskDurationMin
           ),
     [defaultTaskDurationMin, snapshot]
   )
+  const itemTypes = useMemo(() => snapshot?.itemTypes ?? [], [snapshot])
+  const defaultTaskType = useMemo(() => firstTaskType(itemTypes), [itemTypes])
   const categories = useMemo(() => snapshot?.categories ?? [], [snapshot])
   const categoryGroups = useMemo(() => snapshot?.categoryGroups ?? [], [snapshot])
 
@@ -186,6 +193,11 @@ export const InboxPanel = memo(function InboxPanel({
 
     if (pending) return
 
+    if (defaultTaskType === null) {
+      setFormError('Créez d’abord un type d’élément marqué « tâche ».')
+      return
+    }
+
     const validation = validateQuickTaskDraft({
       title,
       categoryId: effectiveCategoryId,
@@ -202,7 +214,7 @@ export const InboxPanel = memo(function InboxPanel({
 
     try {
       await repositories.items.create({
-        kind: 'task',
+        typeId: defaultTaskType.id,
         title: validation.values.title,
         categoryId: validation.values.categoryId,
         estimateMin: validation.values.estimateMin,
@@ -222,7 +234,7 @@ export const InboxPanel = memo(function InboxPanel({
     setTaskEditor({
       itemId: task.item.id,
       anchor: { x: event.clientX, y: event.clientY },
-      draft: taskDraftFrom(task.item)
+      draft: taskDraftFrom(task.item, task.type)
     })
   }
 
@@ -465,46 +477,48 @@ export const InboxPanel = memo(function InboxPanel({
                     : 'Aucune tâche dans cette catégorie.'}
                 </p>
               ) : (
-                visibleTasks.map((task) => (
-                  <div
-                    className={styles.rowWrap}
-                    key={task.item.id}
-                    onKeyDown={(event) => handleTaskKeyDown(task, event)}
-                  >
-                    <button
-                      type="button"
-                      className={
-                        task.item.status === 'done' ? `${styles.row} ${styles.rowDone}` : styles.row
-                      }
-                      onPointerDown={(event) => handleTaskPointerDown(task, event)}
-                      onClick={(event) => handleTaskClick(task, event)}
-                    >
-                      <span
-                        className={styles.dot}
-                        style={
-                          task.category === null
-                            ? undefined
-                            : categoryColorStyle(task.category.color)
-                        }
-                        aria-hidden="true"
-                      />
-                      <span className={styles.rowTitle}>{task.item.title}</span>
-                      <span className={styles.remaining}>
-                        {formatDurationMinutes(task.remainingMin)}
-                      </span>
-                    </button>
+                visibleTasks.map((task) => {
+                  const accent = itemTypeAccentColor(task.type, task.category?.color ?? null)
 
-                    <button
-                      type="button"
-                      className={styles.deleteButton}
-                      aria-label="Supprimer la tâche"
-                      title="Supprimer la tâche"
-                      onClick={() => void handleTaskDelete(task)}
+                  return (
+                    <div
+                      className={styles.rowWrap}
+                      key={task.item.id}
+                      onKeyDown={(event) => handleTaskKeyDown(task, event)}
                     >
-                      <Icon name="trash" size={14} />
-                    </button>
-                  </div>
-                ))
+                      <button
+                        type="button"
+                        className={
+                          task.item.status === 'done'
+                            ? `${styles.row} ${styles.rowDone}`
+                            : styles.row
+                        }
+                        onPointerDown={(event) => handleTaskPointerDown(task, event)}
+                        onClick={(event) => handleTaskClick(task, event)}
+                      >
+                        <span
+                          className={styles.dot}
+                          style={accent === null ? undefined : categoryColorStyle(accent)}
+                          aria-hidden="true"
+                        />
+                        <span className={styles.rowTitle}>{task.item.title}</span>
+                        <span className={styles.remaining}>
+                          {formatDurationMinutes(task.remainingMin)}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={styles.deleteButton}
+                        aria-label="Supprimer la tâche"
+                        title="Supprimer la tâche"
+                        onClick={() => void handleTaskDelete(task)}
+                      >
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </div>
+                  )
+                })
               )}
             </div>
           </>
@@ -525,6 +539,7 @@ export const InboxPanel = memo(function InboxPanel({
           anchor={taskEditor.anchor}
           categories={categories}
           categoryGroups={categoryGroups}
+          itemTypes={itemTypes}
           onClose={() => setTaskEditor(null)}
           onSubmitTask={handleTaskSubmit}
           onDelete={handleEditorTaskDelete}

@@ -3,6 +3,7 @@ import type {
   Category,
   CategoryGroup,
   Item,
+  ItemType,
   Override,
   Setting,
   Template
@@ -13,6 +14,7 @@ import type { PlannerDatabase } from '../database'
 export interface BackupData {
   categoryGroups: CategoryGroup[]
   categories: Category[]
+  itemTypes: ItemType[]
   items: Item[]
   blocks: Block[]
   templates: Template[]
@@ -34,6 +36,7 @@ export class BackupRepository {
       [
         this.database.categoryGroups,
         this.database.categories,
+        this.database.itemTypes,
         this.database.items,
         this.database.blocks,
         this.database.templates,
@@ -43,6 +46,7 @@ export class BackupRepository {
       async () => {
         await this.database.categoryGroups.clear()
         await this.database.categories.clear()
+        await this.database.itemTypes.clear()
         await this.database.items.clear()
         await this.database.blocks.clear()
         await this.database.templates.clear()
@@ -51,6 +55,7 @@ export class BackupRepository {
 
         await this.database.categoryGroups.bulkPut(data.categoryGroups)
         await this.database.categories.bulkPut(data.categories)
+        await this.database.itemTypes.bulkPut(data.itemTypes)
         await this.database.items.bulkPut(data.items)
         await this.database.blocks.bulkPut(data.blocks)
         await this.database.templates.bulkPut(data.templates)

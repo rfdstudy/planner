@@ -8,7 +8,7 @@ import {
   snapMinutes,
   timeToMinutes
 } from './time'
-import type { Block, Item, ItemKind, ItemStatus, LocalDate } from './types'
+import type { Block, Item, ItemStatus, ItemType, LocalDate } from './types'
 
 /** Durée proposée pour un nouveau bloc, en minutes. */
 export const DEFAULT_ELEMENT_DURATION_MIN = 60
@@ -19,14 +19,16 @@ export const DEFAULT_ELEMENT_DURATION_MIN = 60
  */
 export interface ElementDraft {
   variant: 'element'
-  kind: ItemKind
+  typeId: string
+  /** Comportement recopié du type sélectionné, pour valider sans requête. */
+  isTask: boolean
   title: string
   notes: string
   categoryId: string | null
   date: string
   time: string
-  /** Une épreuve peut rester sur la ligne du haut, sans heure de début. */
-  noTime: boolean
+  /** Bloc sur la ligne du haut, sans heure de début. */
+  fullDay: boolean
   durationMin: string
   estimateMin: string
   status: ItemStatus | null
@@ -34,7 +36,7 @@ export interface ElementDraft {
 
 /** Valeurs validées, prêtes à être enregistrées par les repositories. */
 export interface ElementDraftValues {
-  kind: ItemKind
+  typeId: string
   title: string
   notes: string
   categoryId: string | null
@@ -74,7 +76,8 @@ export type TaskDraftValidation =
 export interface NewElementDraftInput {
   date: LocalDate
   startMin: number
-  kind?: ItemKind
+  /** Type sélectionné : il fournit le comportement par défaut. */
+  type: ItemType
 }
 
 export interface NewElementDraftOptions {
@@ -105,32 +108,34 @@ export function createNewElementDraft(
   input: NewElementDraftInput,
   options: NewElementDraftOptions = {}
 ): ElementDraft {
-  const kind = input.kind ?? 'task'
   const safeStartMin = Number.isFinite(input.startMin) ? Math.round(input.startMin) : 0
   const startMin = clampMinutes(safeStartMin, 0, MINUTES_PER_DAY - 1)
+  const fullDay = input.type.placement === 'topLine'
   const taskDurationMin =
     options.taskDurationMin !== undefined && Number.isFinite(options.taskDurationMin)
       ? Math.min(MINUTES_PER_DAY, Math.max(1, Math.round(options.taskDurationMin)))
       : DEFAULT_ELEMENT_DURATION_MIN
-  const durationMin = kind === 'task' ? taskDurationMin : DEFAULT_ELEMENT_DURATION_MIN
+  const durationMin = input.type.isTask ? taskDurationMin : DEFAULT_ELEMENT_DURATION_MIN
 
   return {
     variant: 'element',
-    kind,
+    typeId: input.type.id,
+    isTask: input.type.isTask,
     title: '',
     notes: '',
     categoryId: null,
     date: input.date,
-    time: minutesToTime(startMin),
-    noTime: false,
+    time: fullDay ? '' : minutesToTime(startMin),
+    fullDay,
     durationMin: String(durationMin),
     estimateMin: '',
-    status: kind === 'task' ? 'todo' : null
+    status: input.type.isTask ? 'todo' : null
   }
 }
 
 /** Brouillon correspondant à un élément et à son bloc déjà enregistrés. */
-export function elementDraftFrom(item: Item, block: Block): ElementDraft {
+export function elementDraftFrom(item: Item, block: Block, type: ItemType): ElementDraft {
+  const fullDay = block.startMin === null
   const time =
     block.startMin === null
       ? ''
@@ -138,13 +143,14 @@ export function elementDraftFrom(item: Item, block: Block): ElementDraft {
 
   return {
     variant: 'element',
-    kind: item.kind,
+    typeId: item.typeId,
+    isTask: type.isTask,
     title: item.title,
     notes: item.notes,
     categoryId: item.categoryId,
     date: block.date,
     time,
-    noTime: block.startMin === null,
+    fullDay,
     durationMin: String(block.durationMin),
     estimateMin: item.estimateMin === null ? '' : String(item.estimateMin),
     status: item.status
@@ -153,14 +159,18 @@ export function elementDraftFrom(item: Item, block: Block): ElementDraft {
 
 /**
  * Vérifie le brouillon et renvoie des valeurs normalisées. Une heure est
- * obligatoire sauf pour une épreuve cochée « sans heure ». La durée estimée
- * n'existe que pour les tâches.
+ * obligatoire sauf lorsque le bloc est placé sur la ligne du haut. La durée
+ * estimée et le statut n'existent que pour les types « tâche ».
  */
 export function validateElementDraft(draft: ElementDraft): ElementDraftValidation {
   const title = draft.title.trim()
 
   if (title.length === 0) {
     return { ok: false, message: 'Donnez un titre à l’élément.' }
+  }
+
+  if (draft.typeId.trim().length === 0) {
+    return { ok: false, message: 'Choisissez un type d’élément.' }
   }
 
   if (!isLocalDate(draft.date)) {
@@ -178,7 +188,7 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
 
   let startMin: number | null = null
 
-  if (!(draft.kind === 'exam' && draft.noTime)) {
+  if (!draft.fullDay) {
     const time = draft.time.trim()
 
     if (time.length === 0) {
@@ -202,7 +212,7 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
 
   let estimateMin: number | null = null
 
-  if (draft.kind === 'task' && draft.estimateMin.trim().length > 0) {
+  if (draft.isTask && draft.estimateMin.trim().length > 0) {
     estimateMin = parsePositiveMinutes(draft.estimateMin)
 
     if (estimateMin === null) {
@@ -213,13 +223,16 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
     }
   }
 
-  const status: ItemStatus | null =
-    draft.kind === 'task' ? (draft.status === 'done' ? 'done' : 'todo') : null
+  const status: ItemStatus | null = draft.isTask
+    ? draft.status === 'done'
+      ? 'done'
+      : 'todo'
+    : null
 
   return {
     ok: true,
     values: {
-      kind: draft.kind,
+      typeId: draft.typeId,
       title,
       notes: draft.notes.trim(),
       categoryId: draft.categoryId,
@@ -233,8 +246,8 @@ export function validateElementDraft(draft: ElementDraft): ElementDraftValidatio
 }
 
 /** Brouillon d'une tâche encore sans bloc, ouverte depuis « À planifier ». */
-export function taskDraftFrom(item: Item): TaskDraft {
-  if (item.kind !== 'task') {
+export function taskDraftFrom(item: Item, type: ItemType): TaskDraft {
+  if (!type.isTask) {
     throw new RangeError('Seules les tâches peuvent être éditées depuis « À planifier ».')
   }
 

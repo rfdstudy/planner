@@ -10,6 +10,7 @@ import {
   type ElementDraft
 } from '../src/core/elementEditor'
 import type { Block, Item } from '../src/core/types'
+import { EXAM_TYPE, FIXED_TYPE, TASK_TYPE } from './testItemTypes'
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -17,7 +18,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     createdAt: '2026-11-11T10:00:00.000Z',
     updatedAt: '2026-11-11T10:00:00.000Z',
     deletedAt: null,
-    kind: 'task',
+    typeId: TASK_TYPE.id,
     title: 'DM Maths',
     notes: 'Chapitre 3',
     categoryId: 'category-1',
@@ -44,7 +45,7 @@ function makeBlock(overrides: Partial<Block> = {}): Block {
 
 function validDraft(overrides: Partial<ElementDraft> = {}): ElementDraft {
   return {
-    ...createNewElementDraft({ date: '2026-11-12', startMin: 840 }),
+    ...createNewElementDraft({ date: '2026-11-12', startMin: 840, type: TASK_TYPE }),
     title: 'Révisions',
     ...overrides
   }
@@ -65,33 +66,47 @@ describe('nouveau bloc sur la grille', () => {
   })
 
   it('prépare un brouillon de tâche à l’heure accrochée', () => {
-    expect(createNewElementDraft({ date: '2026-11-12', startMin: 840 })).toEqual({
+    expect(createNewElementDraft({ date: '2026-11-12', startMin: 840, type: TASK_TYPE })).toEqual({
       variant: 'element',
-      kind: 'task',
+      typeId: TASK_TYPE.id,
+      isTask: true,
       title: '',
       notes: '',
       categoryId: null,
       date: '2026-11-12',
       time: '14:00',
-      noTime: false,
+      fullDay: false,
       durationMin: '60',
       estimateMin: '',
       status: 'todo'
     })
   })
 
+  it('prépare un type de la ligne du haut sans heure', () => {
+    const draft = createNewElementDraft({
+      date: '2026-11-12',
+      startMin: 840,
+      type: EXAM_TYPE
+    })
+
+    expect(draft.fullDay).toBe(true)
+    expect(draft.time).toBe('')
+    expect(draft.isTask).toBe(false)
+  })
+
   it('relit un élément et son bloc existants', () => {
-    const draft = elementDraftFrom(makeItem(), makeBlock())
+    const draft = elementDraftFrom(makeItem(), makeBlock(), TASK_TYPE)
 
     expect(draft).toEqual({
       variant: 'element',
-      kind: 'task',
+      typeId: TASK_TYPE.id,
+      isTask: true,
       title: 'DM Maths',
       notes: 'Chapitre 3',
       categoryId: 'category-1',
       date: '2026-11-12',
       time: '14:00',
-      noTime: false,
+      fullDay: false,
       durationMin: '90',
       estimateMin: '120',
       status: 'todo'
@@ -100,13 +115,19 @@ describe('nouveau bloc sur la grille', () => {
 
   it('relit une épreuve sans heure comme un bloc de la ligne du haut', () => {
     const draft = elementDraftFrom(
-      makeItem({ kind: 'exam', status: null, estimateMin: null }),
-      makeBlock({ startMin: null })
+      makeItem({
+        typeId: EXAM_TYPE.id,
+        status: null,
+        estimateMin: null
+      }),
+      makeBlock({ startMin: null }),
+      EXAM_TYPE
     )
 
-    expect(draft.noTime).toBe(true)
+    expect(draft.fullDay).toBe(true)
     expect(draft.time).toBe('')
     expect(draft.estimateMin).toBe('')
+    expect(draft.isTask).toBe(false)
   })
 })
 
@@ -132,7 +153,7 @@ describe('validation du brouillon', () => {
     ).toEqual({
       ok: true,
       values: {
-        kind: 'task',
+        typeId: TASK_TYPE.id,
         title: 'Révisions',
         notes: 'Fiche 5',
         categoryId: null,
@@ -153,27 +174,42 @@ describe('validation du brouillon', () => {
 
   it('ignore la durée estimée et le statut hors des tâches', () => {
     const validation = validateElementDraft(
-      validDraft({ kind: 'fixed', estimateMin: '120', status: 'done' })
+      validDraft({
+        typeId: FIXED_TYPE.id,
+        isTask: false,
+        estimateMin: '120',
+        status: 'done'
+      })
     )
 
     expect(validation.ok && validation.values.estimateMin).toBeNull()
     expect(validation.ok && validation.values.status).toBeNull()
   })
 
-  it('accepte une épreuve sans heure', () => {
+  it('accepte une épreuve en journée entière', () => {
     const validation = validateElementDraft(
-      validDraft({ kind: 'exam', noTime: true, time: '', estimateMin: '' })
+      validDraft({
+        typeId: EXAM_TYPE.id,
+        isTask: false,
+        fullDay: true,
+        time: '',
+        estimateMin: ''
+      })
     )
 
     expect(validation.ok && validation.values.startMin).toBeNull()
   })
 
-  it('exige une heure pour une épreuve horaire et pour les autres types', () => {
+  it('exige une heure pour un bloc horaire', () => {
     expect(validateElementDraft(validDraft({ time: '' }))).toEqual({
       ok: false,
       message: 'Indiquez une heure de début.'
     })
-    expect(validateElementDraft(validDraft({ kind: 'exam', noTime: false, time: '' }))).toEqual({
+    expect(
+      validateElementDraft(
+        validDraft({ typeId: EXAM_TYPE.id, isTask: false, fullDay: false, time: '' })
+      )
+    ).toEqual({
       ok: false,
       message: 'Indiquez une heure de début.'
     })
@@ -209,7 +245,7 @@ describe('validation du brouillon', () => {
 
 describe('édition d’une tâche sans bloc', () => {
   it('relit une tâche à planifier sans champ de placement', () => {
-    expect(taskDraftFrom(makeItem())).toEqual({
+    expect(taskDraftFrom(makeItem(), TASK_TYPE)).toEqual({
       variant: 'task',
       title: 'DM Maths',
       notes: 'Chapitre 3',
@@ -219,7 +255,7 @@ describe('édition d’une tâche sans bloc', () => {
   })
 
   it('refuse un élément qui n’est pas une tâche', () => {
-    expect(() => taskDraftFrom(makeItem({ kind: 'fixed' }))).toThrow(RangeError)
+    expect(() => taskDraftFrom(makeItem({ typeId: FIXED_TYPE.id }), FIXED_TYPE)).toThrow(RangeError)
   })
 
   it('renvoie des valeurs normalisées sans exiger de date ni d’heure', () => {

@@ -37,11 +37,14 @@ describe('données de démonstration', () => {
       blocks.find((block) => block.date === '2026-11-12' && block.startMin === null)
     ).toBeDefined()
 
-    const items = await repositories.items.list()
+    const [items, itemTypes] = await Promise.all([
+      repositories.items.list(),
+      repositories.itemTypes.list()
+    ])
     const itemIds = new Set(items.map((item) => item.id))
     expect(blocks.every((block) => itemIds.has(block.itemId))).toBe(true)
 
-    const inbox = listInboxTasks(items, blocks, categories)
+    const inbox = listInboxTasks(items, blocks, categories, itemTypes)
 
     expect(inbox.map((task) => task.item.title).sort((a, b) => a.localeCompare(b, 'fr'))).toEqual(
       [

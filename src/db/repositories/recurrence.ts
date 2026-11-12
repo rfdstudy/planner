@@ -1,12 +1,14 @@
 import {
+  buildYearlyRrule,
+  getRecurrenceKind,
   removeWeekdayFromRrule,
   replaceWeekdayInRrule,
   weekdayCodeFromDate
 } from '../../core/recurrence'
 import { MINUTES_PER_DAY, isLocalDate } from '../../core/time'
-import type { LocalDate, Template, TemplateKind } from '../../core/types'
+import type { ItemType, LocalDate, Template } from '../../core/types'
 import type { PlannerDatabase } from '../database'
-import { RecordNotFoundError } from './base'
+import { RecordDeletedError, RecordNotFoundError } from './base'
 import { BlockRepository } from './blocks'
 import { ItemRepository } from './items'
 import { OverrideRepository } from './overrides'
@@ -14,7 +16,7 @@ import { TemplateRepository, type TemplateDetailsInput } from './templates'
 
 /** Valeurs complètes d'une occurrence, telles qu'affichées après édition. */
 export interface OccurrenceValues {
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
   startMin: number
@@ -49,8 +51,8 @@ function assertOccurrenceValues(input: OccurrenceValues): void {
     throw new RangeError('Donnez un titre à l’occurrence.')
   }
 
-  if (input.kind !== 'fixed' && input.kind !== 'free') {
-    throw new RangeError('Un modèle de semaine type est soit fixe, soit libre.')
+  if (input.typeId.trim().length === 0) {
+    throw new RangeError('Choisissez un type pour l’occurrence.')
   }
 
   if (
@@ -78,10 +80,10 @@ function assertOccurrenceValues(input: OccurrenceValues): void {
  * Opérations propres aux blocs de la semaine type.
  *
  * Les occurrences ne sont jamais stockées jour par jour : « cette fois
- * seulement » écrit une exception, « toutes les semaines » modifie le modèle.
- * Lorsqu'une occurrence change de jour pour une seule semaine, elle est
- * supprimée par une exception et recréée comme bloc autonome à la nouvelle
- * date, car le modèle d'exception ne porte pas de date d'arrivée.
+ * seulement » écrit une exception, « toutes les semaines » (ou « toutes les
+ * années ») modifie le modèle. Lorsqu'une occurrence hebdomadaire change de
+ * jour pour une seule semaine, elle est supprimée par une exception et recréée
+ * comme bloc autonome à la nouvelle date.
  */
 export class RecurrenceRepository {
   private readonly templates: TemplateRepository
@@ -90,21 +92,23 @@ export class RecurrenceRepository {
   private readonly blocks: BlockRepository
 
   constructor(private readonly database: PlannerDatabase) {
-    this.templates = new TemplateRepository(database.templates)
+    this.templates = new TemplateRepository(database)
     this.overrides = new OverrideRepository(database.overrides)
-    this.items = new ItemRepository(database.items)
+    this.items = new ItemRepository(database)
     this.blocks = new BlockRepository(database.blocks)
   }
 
-  /** Modifie une occurrence pour cette semaine uniquement. */
+  /** Modifie une occurrence pour cette semaine (ou cette année) uniquement. */
   async editOccurrenceOnce(input: EditOccurrenceInput): Promise<void> {
     assertDate(input.date)
     assertOccurrenceValues(input)
     await this.requireTemplate(input.templateId)
+    await this.requireType(input.typeId)
 
     await this.overrides.upsertModify({
       templateId: input.templateId,
       date: input.date,
+      typeId: input.typeId,
       title: input.title,
       categoryId: input.categoryId,
       startMin: input.startMin,
@@ -123,6 +127,7 @@ export class RecurrenceRepository {
     assertDate(input.targetDate)
     assertOccurrenceValues(input)
     const template = await this.requireTemplate(input.templateId)
+    await this.requireType(input.typeId)
 
     if (input.targetDate === input.date) {
       await this.editOccurrenceOnce(input)
@@ -131,12 +136,12 @@ export class RecurrenceRepository {
 
     await this.database.transaction(
       'rw',
-      [this.database.overrides, this.database.items, this.database.blocks],
+      [this.database.overrides, this.database.itemTypes, this.database.items, this.database.blocks],
       async () => {
         await this.overrides.upsertSkip(template.id, input.date)
 
         const item = await this.items.create({
-          kind: template.kind,
+          typeId: input.typeId,
           title: input.title,
           categoryId: input.categoryId,
           templateId: template.id
@@ -152,7 +157,7 @@ export class RecurrenceRepository {
     )
   }
 
-  /** Supprime une occurrence pour cette semaine uniquement. */
+  /** Supprime une occurrence pour cette semaine (ou cette année) uniquement. */
   async deleteOccurrenceOnce(templateId: string, date: LocalDate): Promise<void> {
     assertDate(date)
     await this.requireTemplate(templateId)
@@ -160,17 +165,20 @@ export class RecurrenceRepository {
   }
 
   /**
-   * Applique une modification au modèle entier. Si le jour change, le jour
-   * d'origine est remplacé dans la règle hebdomadaire.
+   * Applique une modification au modèle entier. Pour un modèle hebdomadaire,
+   * le jour d'origine est remplacé dans la règle. Pour un modèle annuel, la
+   * date de début devient la nouvelle date anniversaire.
    */
   async updateOccurrenceEveryWeek(input: EditOccurrenceEveryWeekInput): Promise<Template> {
     assertDate(input.date)
     assertDate(input.targetDate)
     assertOccurrenceValues(input)
     const template = await this.requireTemplate(input.templateId)
+    await this.requireType(input.typeId)
 
     return this.updateTemplateFromOccurrence(template, {
       values: input,
+      date: input.date,
       sourceDay: weekdayCodeFromDate(input.date),
       targetDay: weekdayCodeFromDate(input.targetDate),
       targetDate: input.targetDate
@@ -178,8 +186,7 @@ export class RecurrenceRepository {
   }
 
   /**
-   * Déplace une occurrence sur toutes les semaines. Le jour d'origine de la
-   * règle est remplacé par le jour d'arrivée.
+   * Déplace une occurrence sur toutes les semaines (ou toutes les années).
    */
   async moveOccurrenceEveryWeek(input: MoveOccurrenceInput): Promise<Template> {
     return this.updateOccurrenceEveryWeek(input)
@@ -200,12 +207,18 @@ export class RecurrenceRepository {
   }
 
   /**
-   * Supprime un bloc sur toutes les semaines. Le jour est retiré de la règle ;
-   * si c'était le dernier jour du modèle, le modèle entier est supprimé.
+   * Supprime un bloc sur toutes les semaines. Le jour est retiré de la règle
+   * hebdomadaire ; un modèle annuel est supprimé en entier.
    */
   async deleteOccurrenceEveryWeek(templateId: string, date: LocalDate): Promise<void> {
     assertDate(date)
     const template = await this.requireTemplate(templateId)
+
+    if (getRecurrenceKind(template.rrule) === 'yearly') {
+      await this.templates.softDelete(template.id)
+      return
+    }
+
     const day = weekdayCodeFromDate(date)
     const rrule = removeWeekdayFromRrule(template.rrule, day)
 
@@ -215,7 +228,7 @@ export class RecurrenceRepository {
     }
 
     await this.templates.updateDetails(template.id, {
-      kind: template.kind,
+      typeId: template.typeId,
       title: template.title,
       categoryId: template.categoryId,
       rrule,
@@ -251,16 +264,60 @@ export class RecurrenceRepository {
     return template
   }
 
+  private async requireType(typeId: string): Promise<ItemType> {
+    const type = await this.database.itemTypes.get(typeId)
+
+    if (type === undefined) {
+      throw new RecordNotFoundError('Type d’élément', typeId)
+    }
+
+    if (type.deletedAt !== null) {
+      throw new RecordDeletedError('Type d’élément', typeId)
+    }
+
+    return type
+  }
+
   private async updateTemplateFromOccurrence(
     template: Template,
     input: {
       values: OccurrenceValues
+      date: LocalDate
       sourceDay: ReturnType<typeof weekdayCodeFromDate>
       targetDay: ReturnType<typeof weekdayCodeFromDate>
       targetDate: LocalDate
     }
   ): Promise<Template> {
-    const { values, sourceDay, targetDay, targetDate } = input
+    const { values, date, sourceDay, targetDay, targetDate } = input
+    const recurrence = getRecurrenceKind(template.rrule)
+
+    if (recurrence === 'yearly') {
+      // Le jour et le mois de `validFrom` portent la date anniversaire. Une
+      // simple modification de contenu ne doit pas avancer le début du modèle.
+      const anniversaryChanged = date.slice(5) !== targetDate.slice(5)
+      let validFrom = template.validFrom
+
+      if (anniversaryChanged) {
+        const candidate = `${template.validFrom.slice(0, 4)}-${targetDate.slice(5)}`
+        validFrom = isLocalDate(candidate) ? candidate : targetDate
+      }
+      const validUntil =
+        template.validUntil !== null && targetDate > template.validUntil
+          ? targetDate
+          : template.validUntil
+
+      return this.templates.updateDetails(template.id, {
+        typeId: values.typeId,
+        title: values.title,
+        categoryId: values.categoryId,
+        rrule: buildYearlyRrule(),
+        startMin: values.startMin,
+        durationMin: values.durationMin,
+        validFrom,
+        validUntil
+      })
+    }
+
     const rrule =
       sourceDay === targetDay
         ? template.rrule
@@ -273,7 +330,7 @@ export class RecurrenceRepository {
         : template.validUntil
 
     return this.templates.updateDetails(template.id, {
-      kind: values.kind,
+      typeId: values.typeId,
       title: values.title,
       categoryId: values.categoryId,
       rrule,

@@ -1,15 +1,23 @@
+import {
+  createDefaultItemTypes,
+  defaultItemTypeIdForKind,
+  defaultTemplateTypeIdForKind,
+  isItemTypePlacement,
+  isItemTypeStyle
+} from '../core/itemTypes'
 import { isLocalDate, formatLocalDate } from '../core/time'
 import type {
   Block,
   Category,
   CategoryGroup,
   Item,
+  ItemType,
   JsonValue,
   Override,
   Setting,
   Template
 } from '../core/types'
-import { DATABASE_VERSION } from './database'
+import { DATABASE_VERSION, LEGACY_DATABASE_VERSION } from './database'
 import type { BackupData, Repositories } from './repositories'
 
 /** Marqueur permettant de reconnaître une sauvegarde Planner. */
@@ -34,6 +42,18 @@ export class BackupFormatError extends Error {
 }
 
 type UnknownRecord = Record<string, unknown>
+
+interface LegacyItem extends Omit<Item, 'typeId'> {
+  kind: string
+}
+
+interface LegacyTemplate extends Omit<Template, 'typeId'> {
+  kind: string
+}
+
+interface LegacyOverride extends Omit<Override, 'typeId'> {
+  typeId?: string | null
+}
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -110,14 +130,27 @@ function isCategory(value: unknown): value is Category {
   )
 }
 
-function isItem(value: unknown): value is Item {
-  if (!isRecord(value) || !isBaseRecord(value)) return false
+function isItemType(value: unknown): value is ItemType {
+  return (
+    isRecord(value) &&
+    isBaseRecord(value) &&
+    typeof value.name === 'string' &&
+    value.name.trim().length > 0 &&
+    typeof value.order === 'number' &&
+    Number.isInteger(value.order) &&
+    isNullableIsoDateTime(value.archivedAt) &&
+    isItemTypeStyle(value.style) &&
+    isNullableString(value.color) &&
+    typeof value.isTask === 'boolean' &&
+    typeof value.countdown === 'boolean' &&
+    isItemTypePlacement(value.placement)
+  )
+}
 
-  const kind = value.kind
+function hasValidItemFields(value: UnknownRecord): boolean {
   const status = value.status
 
   return (
-    (kind === 'fixed' || kind === 'task' || kind === 'exam' || kind === 'free') &&
     typeof value.title === 'string' &&
     typeof value.notes === 'string' &&
     isNullableString(value.categoryId) &&
@@ -125,6 +158,28 @@ function isItem(value: unknown): value is Item {
       isIntegerBetween(value.estimateMin, 1, Number.MAX_SAFE_INTEGER)) &&
     (status === null || status === 'todo' || status === 'done') &&
     isNullableString(value.templateId)
+  )
+}
+
+function isItemV2(value: unknown): value is Item {
+  return (
+    isRecord(value) &&
+    isBaseRecord(value) &&
+    typeof value.typeId === 'string' &&
+    value.typeId.length > 0 &&
+    hasValidItemFields(value)
+  )
+}
+
+function isLegacyItem(value: unknown): value is LegacyItem {
+  return (
+    isRecord(value) &&
+    isBaseRecord(value) &&
+    (value.kind === 'fixed' ||
+      value.kind === 'task' ||
+      value.kind === 'exam' ||
+      value.kind === 'free') &&
+    hasValidItemFields(value)
   )
 }
 
@@ -141,11 +196,8 @@ function isBlock(value: unknown): value is Block {
   )
 }
 
-function isTemplate(value: unknown): value is Template {
+function hasValidTemplateFields(value: UnknownRecord): boolean {
   return (
-    isRecord(value) &&
-    isBaseRecord(value) &&
-    (value.kind === 'fixed' || value.kind === 'free') &&
     typeof value.title === 'string' &&
     isNullableString(value.categoryId) &&
     typeof value.rrule === 'string' &&
@@ -159,10 +211,27 @@ function isTemplate(value: unknown): value is Template {
   )
 }
 
-function isOverride(value: unknown): value is Override {
+function isTemplateV2(value: unknown): value is Template {
   return (
     isRecord(value) &&
     isBaseRecord(value) &&
+    typeof value.typeId === 'string' &&
+    value.typeId.length > 0 &&
+    hasValidTemplateFields(value)
+  )
+}
+
+function isLegacyTemplate(value: unknown): value is LegacyTemplate {
+  return (
+    isRecord(value) &&
+    isBaseRecord(value) &&
+    (value.kind === 'fixed' || value.kind === 'free') &&
+    hasValidTemplateFields(value)
+  )
+}
+
+function hasValidOverrideFields(value: UnknownRecord): boolean {
+  return (
     typeof value.templateId === 'string' &&
     value.templateId.length > 0 &&
     typeof value.date === 'string' &&
@@ -173,6 +242,19 @@ function isOverride(value: unknown): value is Override {
     (value.startMin === null || isIntegerBetween(value.startMin, 0, 1439)) &&
     (value.durationMin === null || isIntegerBetween(value.durationMin, 1, 1440))
   )
+}
+
+function isOverrideV2(value: unknown): value is Override {
+  return (
+    isRecord(value) &&
+    isBaseRecord(value) &&
+    hasValidOverrideFields(value) &&
+    (value.typeId === undefined || isNullableString(value.typeId))
+  )
+}
+
+function isLegacyOverride(value: unknown): value is LegacyOverride {
+  return isRecord(value) && isBaseRecord(value) && hasValidOverrideFields(value)
 }
 
 function isSetting(value: unknown): value is Setting {
@@ -216,7 +298,7 @@ function readTable<T>(
   return records
 }
 
-function readData(value: unknown): BackupData {
+function readDataV2(value: unknown): BackupData {
   if (!isRecord(value)) {
     throw new BackupFormatError('Les données de la sauvegarde sont absentes.')
   }
@@ -224,17 +306,55 @@ function readData(value: unknown): BackupData {
   return {
     categoryGroups: readTable(value.categoryGroups, 'groupes', isCategoryGroup),
     categories: readTable(value.categories, 'catégories', isCategory),
-    items: readTable(value.items, 'éléments', isItem),
+    itemTypes: readTable(value.itemTypes, 'types d’éléments', isItemType),
+    items: readTable(value.items, 'éléments', isItemV2),
     blocks: readTable(value.blocks, 'blocs', isBlock),
-    templates: readTable(value.templates, 'modèles', isTemplate),
-    overrides: readTable(value.overrides, 'exceptions', isOverride),
+    templates: readTable(value.templates, 'modèles', isTemplateV2),
+    overrides: readTable(value.overrides, 'exceptions', isOverrideV2).map((override) => ({
+      ...override,
+      typeId: override.typeId ?? null
+    })),
     settings: readTable(value.settings, 'réglages', isSetting, (setting) => setting.key)
   }
 }
 
 /**
- * Lit et vérifie une sauvegarde JSON avant de proposer son import. Une version
- * inconnue est refusée plutôt que lue de travers.
+ * Convertit une sauvegarde du schéma historique (version 1). Les éléments et
+ * modèles reçoivent le type équivalent ; les cinq types de départ sont créés.
+ */
+function readDataV1(value: unknown, exportedAt: string): BackupData {
+  if (!isRecord(value)) {
+    throw new BackupFormatError('Les données de la sauvegarde sont absentes.')
+  }
+
+  const legacyItems = readTable(value.items, 'éléments', isLegacyItem)
+  const legacyTemplates = readTable(value.templates, 'modèles', isLegacyTemplate)
+  const legacyOverrides = readTable(value.overrides, 'exceptions', isLegacyOverride)
+
+  return {
+    categoryGroups: readTable(value.categoryGroups, 'groupes', isCategoryGroup),
+    categories: readTable(value.categories, 'catégories', isCategory),
+    itemTypes: createDefaultItemTypes(exportedAt),
+    items: legacyItems.map(({ kind, ...item }) => ({
+      ...item,
+      typeId: defaultItemTypeIdForKind(kind)
+    })),
+    blocks: readTable(value.blocks, 'blocs', isBlock),
+    templates: legacyTemplates.map(({ kind, ...template }) => ({
+      ...template,
+      typeId: defaultTemplateTypeIdForKind(kind)
+    })),
+    overrides: legacyOverrides.map((override) => ({
+      ...override,
+      typeId: override.typeId ?? null
+    })),
+    settings: readTable(value.settings, 'réglages', isSetting, (setting) => setting.key)
+  }
+}
+
+/**
+ * Lit et vérifie une sauvegarde JSON avant de proposer son import. Les
+ * sauvegardes du schéma historique sont converties à la volée.
  */
 export function parseBackup(text: string): PlannerBackup {
   let value: unknown
@@ -253,9 +373,9 @@ export function parseBackup(text: string): PlannerBackup {
     throw new BackupFormatError('La version de la sauvegarde est invalide.')
   }
 
-  if (value.version !== DATABASE_VERSION) {
+  if (value.version !== LEGACY_DATABASE_VERSION && value.version !== DATABASE_VERSION) {
     throw new BackupFormatError(
-      `Version de sauvegarde non prise en charge (${value.version}). Cette version de Planner lit la version ${DATABASE_VERSION}.`
+      `Version de sauvegarde non prise en charge (${value.version}). Cette version de Planner lit les versions ${LEGACY_DATABASE_VERSION} et ${DATABASE_VERSION}.`
     )
   }
 
@@ -263,11 +383,16 @@ export function parseBackup(text: string): PlannerBackup {
     throw new BackupFormatError('La date d’export de la sauvegarde est invalide.')
   }
 
+  const data =
+    value.version === LEGACY_DATABASE_VERSION
+      ? readDataV1(value.data, value.exportedAt)
+      : readDataV2(value.data)
+
   return {
     format: BACKUP_FORMAT,
-    version: value.version,
+    version: DATABASE_VERSION,
     exportedAt: value.exportedAt,
-    data: readData(value.data)
+    data
   }
 }
 
@@ -279,10 +404,11 @@ export async function createBackup(
   repositories: Repositories,
   exportedAt: Date = new Date()
 ): Promise<PlannerBackup> {
-  const [categoryGroups, categories, items, blocks, templates, overrides, settings] =
+  const [categoryGroups, categories, itemTypes, items, blocks, templates, overrides, settings] =
     await Promise.all([
       repositories.categoryGroups.list({ includeDeleted: true }),
       repositories.categories.list({ includeDeleted: true }),
+      repositories.itemTypes.list({ includeDeleted: true }),
       repositories.items.list({ includeDeleted: true }),
       repositories.blocks.list({ includeDeleted: true }),
       repositories.templates.list({ includeDeleted: true }),
@@ -294,7 +420,7 @@ export async function createBackup(
     format: BACKUP_FORMAT,
     version: DATABASE_VERSION,
     exportedAt: exportedAt.toISOString(),
-    data: { categoryGroups, categories, items, blocks, templates, overrides, settings }
+    data: { categoryGroups, categories, itemTypes, items, blocks, templates, overrides, settings }
   }
 }
 

@@ -1,6 +1,6 @@
 import { Frequency, RRule } from 'rrule'
 import { getWeekdayIndex, isLocalDate, parseLocalDate } from './time'
-import type { LocalDate, Override, Template, TemplateKind } from './types'
+import type { LocalDate, Override, Template } from './types'
 
 /** Codes RRULE des jours, dans l'ordre d'une semaine française. */
 export const WEEKDAY_CODES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const
@@ -22,13 +22,31 @@ export interface TemplateOccurrence {
   id: string
   templateId: string
   date: LocalDate
-  kind: TemplateKind
+  typeId: string
   title: string
   categoryId: string | null
   startMin: number
   durationMin: number
   /** Exception de modification appliquée, ou `null` si l'occurrence est nue. */
   overrideId: string | null
+}
+
+export type RecurrenceKind = 'weekly' | 'yearly'
+
+/** Reconnaît une règle hebdomadaire ou annuelle, sans lever d'exception. */
+export function getRecurrenceKind(rrule: string): RecurrenceKind | null {
+  const normalized = rrule.trim().replace(/^RRULE:/i, '')
+
+  try {
+    const options = RRule.parseString(normalized)
+
+    if (options.freq === Frequency.WEEKLY) return 'weekly'
+    if (options.freq === Frequency.YEARLY) return 'yearly'
+
+    return null
+  } catch {
+    return null
+  }
 }
 
 /** Clé stable d'une occurrence, utilisée pour les blocs virtuels de la grille. */
@@ -68,6 +86,15 @@ export function buildWeeklyRrule(days: readonly WeekdayCode[]): string {
   }
 
   return `FREQ=WEEKLY;BYDAY=${orderedDays.join(',')}`
+}
+
+/**
+ * Règle annuelle standard. Le jour et le mois sont portés par la date de
+ * début de validité (`validFrom`), ce qui gère naturellement le 29 février :
+ * l'occurrence n'existe que les années bissextiles.
+ */
+export function buildYearlyRrule(): string {
+  return 'FREQ=YEARLY'
 }
 
 /**
@@ -157,7 +184,9 @@ function parseRule(template: Template): RRule | null {
   try {
     const options = RRule.parseString(normalized)
 
-    if (options.freq !== Frequency.WEEKLY) return null
+    if (options.freq !== Frequency.WEEKLY && options.freq !== Frequency.YEARLY) {
+      return null
+    }
 
     return new RRule({
       ...options,
@@ -195,7 +224,7 @@ function occurrenceFor(
     id: occurrenceId(template.id, date),
     templateId: template.id,
     date,
-    kind: template.kind,
+    typeId: template.typeId,
     title: template.title,
     categoryId: template.categoryId,
     startMin: template.startMin,
@@ -208,6 +237,7 @@ function occurrenceFor(
 
   return {
     ...base,
+    typeId: override.typeId ?? template.typeId,
     title: override.title ?? template.title,
     // Une exception de modification enregistre la catégorie résultante, y
     // compris « sans catégorie » : `null` est donc significatif ici.

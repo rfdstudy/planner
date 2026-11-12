@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import { PlannerDatabase } from '../src/db/database'
 import {
   RecordDeletedError,
@@ -49,19 +50,19 @@ async function createFixture(): Promise<{
     order: 1
   })
   const item = await repositories.items.create({
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'DM de mathématiques',
     categoryId: source.id,
     estimateMin: 90
   })
   const untouchedItem = await repositories.items.create({
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'Lecture',
     categoryId: target.id,
     estimateMin: 30
   })
   const template = await repositories.templates.create({
-    kind: 'fixed',
+    typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
     title: 'Cours de mathématiques',
     categoryId: source.id,
     rrule: 'FREQ=WEEKLY;BYDAY=MO',

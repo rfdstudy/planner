@@ -1,0 +1,143 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0 var(--sp-4);
+}
+
+.topRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.nameInput {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.nameInput:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.nameInput:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.propertyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.label {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.select {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.select:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.select:focus {
+  border-color: var(--line-strong);
+  background: var(--bg);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.colorSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.hint {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.primaryButton {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: opacity var(--t-fast);
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.ghostButton {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-ctl);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition: background-color var(--t-fast);
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.primaryButton:disabled,
+.ghostButton:disabled {
+  opacity: 0.5;
+}
+
+.error {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}

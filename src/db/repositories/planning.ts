@@ -48,7 +48,7 @@ export class PlanningRepository {
     private readonly history: UndoHistory
   ) {
     this.blocks = new BlockRepository(database.blocks)
-    this.items = new ItemRepository(database.items)
+    this.items = new ItemRepository(database)
   }
 
   /** Déplace un bloc vers une autre date ou une autre heure. */
@@ -132,7 +132,13 @@ export class PlanningRepository {
       throw new RecordNotFoundError('Élément', input.itemId)
     }
 
-    if (item.kind !== 'task') {
+    const type = await this.database.itemTypes.get(item.typeId)
+
+    if (type === undefined) {
+      throw new RecordNotFoundError('Type d’élément', item.typeId)
+    }
+
+    if (!type.isTask) {
       throw new RangeError('Seules les tâches peuvent être placées depuis le panneau.')
     }
 
@@ -178,7 +184,7 @@ export class PlanningRepository {
   async deleteTask(itemId: string): Promise<DeletedTaskResult> {
     const { item: deletedItem, blocks } = await this.database.transaction(
       'rw',
-      [this.database.items, this.database.blocks],
+      [this.database.itemTypes, this.database.items, this.database.blocks],
       async () => {
         const item = await this.items.get(itemId)
 
@@ -186,7 +192,13 @@ export class PlanningRepository {
           throw new RecordNotFoundError('Élément', itemId)
         }
 
-        if (item.kind !== 'task') {
+        const type = await this.database.itemTypes.get(item.typeId)
+
+        if (type === undefined) {
+          throw new RecordNotFoundError('Type d’élément', item.typeId)
+        }
+
+        if (!type.isTask) {
           throw new RangeError('Seules les tâches peuvent être supprimées depuis le panneau.')
         }
 

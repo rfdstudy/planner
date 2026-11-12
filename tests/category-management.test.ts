@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import { PlannerDatabase } from '../src/db/database'
 import { createRepositories, type Repositories } from '../src/db/repositories'
 import {
@@ -178,14 +179,18 @@ describe('gestion des catégories', () => {
       name: 'Physique',
       color: '#12A594'
     })
-    await repositories.items.create({ kind: 'task', title: 'DM', categoryId: category.id })
     await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
+      title: 'DM',
+      categoryId: category.id
+    })
+    await repositories.items.create({
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Ancien DM',
       categoryId: category.id
     })
     await repositories.templates.create({
-      kind: 'fixed',
+      typeId: DEFAULT_ITEM_TYPE_IDS.fixed,
       title: 'Cours',
       categoryId: category.id,
       rrule: 'FREQ=WEEKLY;BYDAY=MO',
@@ -200,13 +205,13 @@ describe('gestion des catégories', () => {
       categoryId: category.id
     })
     await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Lecture',
       categoryId: otherCategory.id
     })
 
     const deletedItem = await repositories.items.create({
-      kind: 'task',
+      typeId: DEFAULT_ITEM_TYPE_IDS.task,
       title: 'Supprimé',
       categoryId: category.id
     })
@@ -269,6 +274,8 @@ describe('réglages', () => {
 
     expect(updated.id).toBe(created.id)
     expect(updated.value).toBe(true)
-    expect(await repositories.settings.list()).toHaveLength(1)
+    expect((await repositories.settings.getByKey('categories.onboardingCompleted'))?.value).toBe(
+      true
+    )
   })
 })

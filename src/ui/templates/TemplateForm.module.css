@@ -144,6 +144,24 @@
   min-width: 0;
 }
 
+.recurrenceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.recurrenceField {
+  flex: 0 0 180px;
+}
+
+.recurrenceHint {
+  flex: 1 1 260px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
 .daysField {
   display: flex;
   flex-direction: column;

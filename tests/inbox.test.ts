@@ -7,7 +7,9 @@ import {
   sumPlannedMinutes,
   validateQuickTaskDraft
 } from '../src/core/inbox'
+import { DEFAULT_ITEM_TYPE_IDS } from '../src/core/itemTypes'
 import type { Block, Category, Item } from '../src/core/types'
+import { EXAM_TYPE, FIXED_TYPE, FREE_TYPE, TASK_TYPE } from './testItemTypes'
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -15,7 +17,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     createdAt: '2026-11-11T10:00:00.000Z',
     updatedAt: '2026-11-11T10:00:00.000Z',
     deletedAt: null,
-    kind: 'task',
+    typeId: DEFAULT_ITEM_TYPE_IDS.task,
     title: 'DM Maths',
     notes: '',
     categoryId: 'category-1',
@@ -96,32 +98,39 @@ describe('temps restant d’une tâche', () => {
 
 describe('présence dans « À planifier »', () => {
   it('garde une tâche tant que ses blocs ne couvrent pas son estimation', () => {
-    expect(isTaskInInbox(makeItem({ estimateMin: 120 }), [])).toBe(true)
-    expect(isTaskInInbox(makeItem({ estimateMin: 120 }), [makeBlock()])).toBe(true)
+    expect(isTaskInInbox(makeItem({ estimateMin: 120 }), [], TASK_TYPE)).toBe(true)
+    expect(isTaskInInbox(makeItem({ estimateMin: 120 }), [makeBlock()], TASK_TYPE)).toBe(true)
     expect(
-      isTaskInInbox(makeItem({ estimateMin: 120 }), [
-        makeBlock({ durationMin: 60 }),
-        makeBlock({ id: 'block-2', durationMin: 60 })
-      ])
+      isTaskInInbox(
+        makeItem({ estimateMin: 120 }),
+        [makeBlock({ durationMin: 60 }), makeBlock({ id: 'block-2', durationMin: 60 })],
+        TASK_TYPE
+      )
     ).toBe(false)
   })
 
   it('fait sortir une tâche sans estimation dès qu’elle a un bloc', () => {
-    expect(isTaskInInbox(makeItem({ estimateMin: null }), [])).toBe(true)
-    expect(isTaskInInbox(makeItem({ estimateMin: null }), [makeBlock()])).toBe(false)
+    expect(isTaskInInbox(makeItem({ estimateMin: null }), [], TASK_TYPE)).toBe(true)
+    expect(isTaskInInbox(makeItem({ estimateMin: null }), [makeBlock()], TASK_TYPE)).toBe(false)
   })
 
   it('ignore les éléments qui ne sont pas des tâches', () => {
-    expect(isTaskInInbox(makeItem({ kind: 'fixed' }), [])).toBe(false)
-    expect(isTaskInInbox(makeItem({ kind: 'exam' }), [])).toBe(false)
-    expect(isTaskInInbox(makeItem({ kind: 'free' }), [])).toBe(false)
+    expect(
+      isTaskInInbox(makeItem({ typeId: FIXED_TYPE.id, estimateMin: null }), [], FIXED_TYPE)
+    ).toBe(false)
+    expect(
+      isTaskInInbox(makeItem({ typeId: EXAM_TYPE.id, estimateMin: null }), [], EXAM_TYPE)
+    ).toBe(false)
+    expect(
+      isTaskInInbox(makeItem({ typeId: FREE_TYPE.id, estimateMin: null }), [], FREE_TYPE)
+    ).toBe(false)
   })
 
   it('laisse une tâche terminée suivre la même règle de couverture', () => {
-    expect(isTaskInInbox(makeItem({ status: 'done' }), [])).toBe(true)
-    expect(isTaskInInbox(makeItem({ status: 'done', estimateMin: null }), [makeBlock()])).toBe(
-      false
-    )
+    expect(isTaskInInbox(makeItem({ status: 'done' }), [], TASK_TYPE)).toBe(true)
+    expect(
+      isTaskInInbox(makeItem({ status: 'done', estimateMin: null }), [makeBlock()], TASK_TYPE)
+    ).toBe(false)
   })
 })
 
@@ -139,11 +148,13 @@ describe('liste du panneau', () => {
         })
       ],
       [],
-      categories
+      categories,
+      [TASK_TYPE]
     )
 
     expect(tasks.map((task) => task.item.id)).toEqual(['earlier', 'other', 'later'])
     expect(tasks[0].category).toEqual(categories[0])
+    expect(tasks[0].type).toEqual(TASK_TYPE)
     expect(tasks[1].category).toBeNull()
   })
 
@@ -154,9 +165,10 @@ describe('liste du panneau', () => {
       makeBlock({ id: 'wednesday', date: '2026-11-11', durationMin: 45 })
     ]
 
-    expect(listInboxTasks(items, blocks, [])).toEqual([
+    expect(listInboxTasks(items, blocks, [], [TASK_TYPE])).toEqual([
       {
         item: items[0],
+        type: TASK_TYPE,
         category: null,
         remainingMin: 30
       }
@@ -167,13 +179,15 @@ describe('liste du panneau', () => {
     const items = [makeItem({ id: 'item-1' }), makeItem({ id: 'item-2' })]
     const blocks = [makeBlock({ itemId: 'item-2', durationMin: 120 })]
 
-    expect(listInboxTasks(items, blocks, []).map((task) => task.item.id)).toEqual(['item-1'])
+    expect(listInboxTasks(items, blocks, [], [TASK_TYPE]).map((task) => task.item.id)).toEqual([
+      'item-1'
+    ])
   })
 
   it('applique la durée par défaut fournie aux tâches sans estimation', () => {
     const items = [makeItem({ estimateMin: null })]
 
-    expect(listInboxTasks(items, [], [], 45)[0]?.remainingMin).toBe(45)
+    expect(listInboxTasks(items, [], [], [TASK_TYPE], 45)[0]?.remainingMin).toBe(45)
   })
 })
 
