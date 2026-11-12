@@ -15,6 +15,8 @@ interface CalendarTopBarProps {
   onOpenTypes: () => void
   onOpenTemplates: () => void
   onOpenSettings: () => void
+  onExportPhoneSnapshot: () => void
+  phoneSnapshotExporting: boolean
   onLoadDemo?: () => void
   demoLoading: boolean
 }
@@ -31,6 +33,8 @@ export function CalendarTopBar({
   onOpenTypes,
   onOpenTemplates,
   onOpenSettings,
+  onExportPhoneSnapshot,
+  phoneSnapshotExporting,
   onLoadDemo,
   demoLoading
 }: CalendarTopBarProps): React.JSX.Element {
@@ -119,6 +123,8 @@ export function CalendarTopBar({
           onOpenTypes={onOpenTypes}
           onOpenTemplates={onOpenTemplates}
           onOpenSettings={onOpenSettings}
+          onExportPhoneSnapshot={onExportPhoneSnapshot}
+          phoneSnapshotExporting={phoneSnapshotExporting}
           onLoadDemo={onLoadDemo}
           demoLoading={demoLoading}
         />

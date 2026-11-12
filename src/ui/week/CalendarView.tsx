@@ -56,6 +56,7 @@ import { useEditingStore } from '../../state/editing'
 import { useUiStore, type CalendarViewMode, type CreationKind } from '../../state/ui'
 import { categoryColorStyle } from '../categoryColorStyle'
 import { ContextMenu } from '../components/ContextMenu'
+import { exportPhoneSnapshot } from '../exportPhoneSnapshot'
 import { duplicateSourceFromEntry } from './duplicateSource'
 import { ElementEditor } from './ElementEditor'
 import { InboxPanel } from './InboxPanel'
@@ -153,6 +154,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const [deletedTaskToast, setDeletedTaskToast] = useState<DeletedTaskToast | null>(null)
   const [bandGestureActive, setBandGestureActive] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [phoneSnapshotExporting, setPhoneSnapshotExporting] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -460,6 +462,21 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       setDemoError('Les données de démonstration n’ont pas pu être chargées.')
     } finally {
       setDemoLoading(false)
+    }
+  }
+
+  async function handleExportPhoneSnapshot(): Promise<void> {
+    if (phoneSnapshotExporting) return
+
+    setPhoneSnapshotExporting(true)
+    setActionError(null)
+
+    try {
+      await exportPhoneSnapshot()
+    } catch {
+      setActionError('L’instantané pour le téléphone n’a pas pu être enregistré.')
+    } finally {
+      setPhoneSnapshotExporting(false)
     }
   }
 
@@ -1065,6 +1082,8 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         onOpenTypes={openTypes}
         onOpenTemplates={openTemplates}
         onOpenSettings={openSettings}
+        onExportPhoneSnapshot={() => void handleExportPhoneSnapshot()}
+        phoneSnapshotExporting={phoneSnapshotExporting}
         onLoadDemo={import.meta.env.DEV ? () => void handleLoadDemo() : undefined}
         demoLoading={demoLoading}
       />

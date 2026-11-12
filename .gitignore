@@ -1,8 +1,11 @@
 node_modules/
 out/
 dist/
+dist-phone/
 release/
 coverage/
+
+planner-telephone.json
 
 *.log*
 *.tsbuildinfo

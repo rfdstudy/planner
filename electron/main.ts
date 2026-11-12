@@ -1,12 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'fs/promises'
-import { basename, join } from 'path'
+import { basename, dirname, join } from 'path'
 import type { IpcMainInvokeEvent, OpenDialogOptions } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { autoBackupFileName, selectAutoBackupsToDelete } from '../src/core/backupRetention'
 import {
   AUTO_BACKUP_CHANNEL,
   OPEN_TEXT_FILE_CHANNEL,
+  SAVE_PHONE_SNAPSHOT_CHANNEL,
   SAVE_TEXT_FILE_CHANNEL
 } from '../src/platform/channels'
 import type {
@@ -21,6 +22,7 @@ import type {
 
 const APP_ID = 'com.planner.app'
 const AUTO_BACKUP_DIRECTORY = 'sauvegardes'
+const PHONE_SNAPSHOT_DIRECTORY_FILE = 'phone-snapshot-directory.txt'
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024
 const MAX_BACKUP_BYTES = 50 * 1024 * 1024
 
@@ -83,6 +85,79 @@ async function handleSaveTextFile(
   }
 
   await writeFile(result.filePath, value.content, 'utf8')
+  return { saved: true, filePath: result.filePath }
+}
+
+async function readPhoneSnapshotDirectory(): Promise<string | null> {
+  try {
+    const directory = (
+      await readFile(join(app.getPath('userData'), PHONE_SNAPSHOT_DIRECTORY_FILE), 'utf8')
+    ).trim()
+
+    if (directory.length === 0) return null
+
+    const information = await stat(directory)
+    return information.isDirectory() ? directory : null
+  } catch {
+    return null
+  }
+}
+
+async function rememberPhoneSnapshotDirectory(filePath: string): Promise<void> {
+  try {
+    await mkdir(app.getPath('userData'), { recursive: true })
+    await writeFile(
+      join(app.getPath('userData'), PHONE_SNAPSHOT_DIRECTORY_FILE),
+      dirname(filePath),
+      'utf8'
+    )
+  } catch {
+    // Mémoriser le dossier est un confort : un échec ne doit pas annuler
+    // l'export déjà écrit sur le disque.
+  }
+}
+
+async function handleSavePhoneSnapshot(
+  event: IpcMainInvokeEvent,
+  value: unknown
+): Promise<SaveTextFileResult> {
+  if (!isSaveTextFileRequest(value)) {
+    throw new Error('Demande d’export pour le téléphone invalide.')
+  }
+
+  const fileName = basename(value.fileName)
+
+  if (fileName.length === 0 || fileName === '.' || fileName === '..') {
+    throw new Error('Le nom du fichier d’instantané est invalide.')
+  }
+
+  if (Buffer.byteLength(value.content, 'utf8') > MAX_BACKUP_BYTES) {
+    throw new Error('L’instantané pour le téléphone est trop volumineux.')
+  }
+
+  const owner = BrowserWindow.fromWebContents(event.sender)
+  const lastDirectory = await readPhoneSnapshotDirectory()
+  const defaultPath =
+    lastDirectory === null
+      ? join(app.getPath('documents'), fileName)
+      : join(lastDirectory, fileName)
+  const options = {
+    title: 'Exporter pour le téléphone',
+    defaultPath,
+    filters: readFilters(value.filters) ?? [{ name: 'Instantané Planner', extensions: ['json'] }]
+  }
+  const result =
+    owner === null
+      ? await dialog.showSaveDialog(options)
+      : await dialog.showSaveDialog(owner, options)
+
+  if (result.canceled || result.filePath === undefined) {
+    return { saved: false }
+  }
+
+  await writeFile(result.filePath, value.content, 'utf8')
+  await rememberPhoneSnapshotDirectory(result.filePath)
+
   return { saved: true, filePath: result.filePath }
 }
 
@@ -210,6 +285,7 @@ if (!hasSingleInstanceLock) {
     electronApp.setAppUserModelId(APP_ID)
 
     ipcMain.handle(SAVE_TEXT_FILE_CHANNEL, handleSaveTextFile)
+    ipcMain.handle(SAVE_PHONE_SNAPSHOT_CHANNEL, handleSavePhoneSnapshot)
     ipcMain.handle(OPEN_TEXT_FILE_CHANNEL, handleOpenTextFile)
     ipcMain.handle(AUTO_BACKUP_CHANNEL, handleAutoBackup)
 

@@ -7,6 +7,9 @@ interface AppMenuProps {
   onOpenTypes: () => void
   onOpenTemplates: () => void
   onOpenSettings: () => void
+  /** Prépare le fichier d'instantané lu par l'application téléphone. */
+  onExportPhoneSnapshot: () => void
+  phoneSnapshotExporting?: boolean
   /** Commande de développement uniquement. */
   onLoadDemo?: () => void
   demoLoading?: boolean
@@ -17,6 +20,8 @@ export function AppMenu({
   onOpenTypes,
   onOpenTemplates,
   onOpenSettings,
+  onExportPhoneSnapshot,
+  phoneSnapshotExporting = false,
   onLoadDemo,
   demoLoading = false
 }: AppMenuProps): React.JSX.Element {
@@ -146,6 +151,19 @@ export function AppMenu({
             }}
           >
             Réglages
+          </button>
+
+          <button
+            type="button"
+            className={styles.item}
+            role="menuitem"
+            disabled={phoneSnapshotExporting}
+            onClick={() => {
+              setOpen(false)
+              onExportPhoneSnapshot()
+            }}
+          >
+            {phoneSnapshotExporting ? 'Export en cours…' : 'Exporter pour le téléphone'}
           </button>
 
           {import.meta.env.DEV && onLoadDemo !== undefined && (

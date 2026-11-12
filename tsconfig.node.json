@@ -3,6 +3,7 @@
   "include": [
     "electron/**/*",
     "electron.vite.config.*",
+    "vite.phone.config.*",
     "vitest.config.*"
   ],
   "compilerOptions": {

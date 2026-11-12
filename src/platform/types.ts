@@ -46,6 +46,11 @@ export interface Platform {
   readonly kind: PlatformKind
   /** Ouvre un enregistrement de fichier natif ou télécharge le contenu. */
   saveTextFile: (request: SaveTextFileRequest) => Promise<SaveTextFileResult>
+  /**
+   * Enregistre l'instantané du téléphone. Sous Electron, la boîte de dialogue
+   * rouvre le dernier dossier utilisé pour ce fichier.
+   */
+  savePhoneSnapshot: (request: SaveTextFileRequest) => Promise<SaveTextFileResult>
   /** Ouvre un fichier texte natif, ou un sélecteur de fichier dans le navigateur. */
   openTextFile: (request: OpenTextFileRequest) => Promise<OpenTextFileResult | null>
   /** Écrit une copie automatique dans le dossier de données (Electron). */

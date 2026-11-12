@@ -14,6 +14,7 @@ declare global {
     planner?: {
       readonly isElectron: boolean
       saveTextFile?: (request: SaveTextFileRequest) => Promise<SaveTextFileResult>
+      savePhoneSnapshot?: (request: SaveTextFileRequest) => Promise<SaveTextFileResult>
       openTextFile?: (request: OpenTextFileRequest) => Promise<OpenTextFileResult | null>
       saveAutoBackup?: (request: AutoBackupRequest) => Promise<AutoBackupResult>
     }

@@ -51,9 +51,11 @@ Le dossier `release/win-unpacked/` contient alors l'application complète.
    restaurer toutes les données en cas de problème.
 2. Fermez complètement Planner (toutes ses fenêtres).
 3. Lancez la commande :
+
 ```bash
 npm run release
 ```
+
 4. Puis lancez `release/Planner-Setup.exe`.
 5. Installez-le par-dessus la version existante : il n'est pas nécessaire de
    désinstaller l'ancienne version.
@@ -110,6 +112,74 @@ La sauvegarde automatique écrit aussi une copie JSON dans
 `%APPDATA%\Planner\sauvegardes\` peu après le démarrage et après les
 modifications. L'export manuel reste la copie à conserver durablement.
 
+## Version téléphone (lecture seule)
+
+L’application iPhone ne contient ni la base de données ni l’éditeur. Le PC
+produit un **instantané** en lecture seule ; l’iPhone l’importe et l’affiche.
+Aucune modification du calendrier n’est possible depuis le téléphone.
+
+### Générer l’instantané sur le PC
+
+1. Dans Planner, ouvrez le menu **Exporter pour le téléphone**, ou `Ctrl+K`
+   puis **Exporter pour le téléphone**.
+2. Choisissez le dossier d’enregistrement. La boîte propose le fichier
+   `planner-telephone.json` et rouvre le dernier dossier utilisé.
+3. Transférez ce fichier sur l’iPhone (AirDrop, iCloud Drive, dossier
+   **Fichiers**…).
+
+L’instantané couvre la veille, le jour de l’export et les 21 jours suivants.
+Les cours de la semaine type, leurs exceptions et les éléments multi-jours sont
+déjà développés dans le fichier. Il ne contient aucun identifiant interne et
+aucune tâche encore à planifier.
+
+### Installer l’application sur l’iPhone
+
+1. Ouvrez **Safari** à l’adresse
+   `https://rfdstudy.github.io/planner/` (adaptez le nom du dépôt si besoin).
+2. Touchez le bouton **Partager**.
+3. Choisissez **Sur l’écran d’accueil**, puis **Ajouter**.
+
+L’application s’ouvre ensuite en plein écran, comme une application normale.
+Elle reste utilisable hors ligne après la première visite.
+
+### Mettre à jour les données
+
+1. Générez un nouvel instantané sur le PC.
+2. Ouvrez l’application Planner sur l’iPhone, puis touchez **Mettre à jour**.
+3. Dans l’application **Fichiers**, choisissez `planner-telephone.json`.
+
+Les données sont remplacées et la ligne sous la date indique la fraîcheur de
+l’instantané, par exemple « Données du 12 nov. à 20:15 ». Un bandeau signale un
+instantané de plus de 24 heures et un message explique lorsqu’un jour sort de
+la fenêtre exportée.
+
+### Mettre à jour l’application elle-même
+
+À chaque push sur `main`, le workflow GitHub Actions reconstruit `dist-phone/`
+et le publie. Rouvrez ensuite l’application sur l’iPhone en étant connecté :
+le service worker remplace l’ancienne version au plus tard à la réouverture.
+
+En développement :
+
+```bash
+npm run dev:phone      # aperçu local, par exemple sur http://localhost:5173/phone.html
+npm run build:phone    # produit dist-phone/
+npm run preview:phone  # sert le build (service worker et mode hors ligne)
+```
+
+### Activer GitHub Pages une seule fois
+
+1. Dans le dépôt GitHub, ouvrez **Settings** puis **Pages**.
+2. Dans **Build and deployment**, choisissez la source **GitHub Actions**.
+3. Poussez sur `main` (ou lancez le workflow manuellement). Le site est ensuite
+   publié à l’adresse indiquée par l’environnement `github-pages`.
+
+Le build utilise la variable `PHONE_BASE` (chemin du dépôt Pages). Le workflow
+la renseigne automatiquement avec `/<nom-du-depot>/`.
+
+> `planner-telephone.json` et `dist-phone/` sont ignorés par Git : aucune
+> donnée personnelle ne doit être ajoutée au dépôt ni au site publié.
+
 ## Structure
 
 - `electron/` : processus principal et preload.
@@ -118,5 +188,8 @@ modifications. L'export manuel reste la copie à conserver durablement.
 - `src/state/` : état d'interface.
 - `src/platform/` : adaptateur Electron / navigateur.
 - `src/ui/` : composants React.
+- `src/phone/` : application iPhone en lecture seule (sans Dexie ni éditeur).
 - `src/styles/` : variables de la charte et styles de base.
+- `public-phone/` : manifeste, service worker et icônes de la PWA.
+- `vite.phone.config.mts` : build séparé vers `dist-phone/`.
 - `tests/` : tests Vitest.

@@ -4,6 +4,7 @@ import { getWeekDays, isLocalDate, todayLocalDate } from '../../core/time'
 import { useUiStore } from '../../state/ui'
 import { exportBackup } from '../exportBackup'
 import { exportCalendarIcs } from '../exportCalendar'
+import { exportPhoneSnapshot } from '../exportPhoneSnapshot'
 import styles from './CommandPalette.module.css'
 
 /** Date la plus utile à proposer : le jour affiché ou aujourd'hui dans la semaine. */
@@ -169,6 +170,25 @@ function PaletteSession(): React.JSX.Element {
             closePalette()
           } catch {
             setError('Le calendrier n’a pas pu être exporté.')
+          } finally {
+            setBusy(false)
+          }
+        }
+      },
+      {
+        id: 'export-phone-snapshot',
+        label: 'Exporter pour le téléphone',
+        hint: 'JSON',
+        keywords: ['export', 'instantané', 'iphone', 'téléphone', 'mobile'],
+        run: async () => {
+          setBusy(true)
+          setError(null)
+
+          try {
+            await exportPhoneSnapshot()
+            closePalette()
+          } catch {
+            setError('L’instantané pour le téléphone n’a pas pu être enregistré.')
           } finally {
             setBusy(false)
           }

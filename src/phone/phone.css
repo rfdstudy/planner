@@ -1,0 +1,34 @@
+html,
+body,
+#root {
+  height: 100dvh;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Sur iPhone, un champ de moins de 16 px déclenche un zoom automatique. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

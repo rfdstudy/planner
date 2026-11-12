@@ -89,6 +89,7 @@ function pickTextFile(request: OpenTextFileRequest): Promise<OpenTextFileResult 
 export const browserPlatform: Platform = {
   kind: 'browser',
   saveTextFile: async (request) => downloadFile(request),
+  savePhoneSnapshot: async (request) => downloadFile(request),
   openTextFile: (request) => pickTextFile(request),
   // Le navigateur n'a pas de dossier de données : la copie automatique est
   // réservée à l'application Electron.

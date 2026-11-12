@@ -11,6 +11,15 @@ export const electronPlatform: Platform = {
 
     return saveTextFile(request)
   },
+  savePhoneSnapshot: async (request) => {
+    const savePhoneSnapshot = window.planner?.savePhoneSnapshot
+
+    if (savePhoneSnapshot === undefined) {
+      throw new Error('L’enregistrement de l’instantané n’est pas disponible.')
+    }
+
+    return savePhoneSnapshot(request)
+  },
   openTextFile: async (request) => {
     const openTextFile = window.planner?.openTextFile
 
