@@ -51,9 +51,9 @@ Le dossier `release/win-unpacked/` contient alors l'application complète.
    restaurer toutes les données en cas de problème.
 2. Fermez complètement Planner (toutes ses fenêtres).
 3. Lancez la commande :
-    ```bash
-      npm run release
-    ```
+```bash
+npm run release
+```
 4. Puis lancez `release/Planner-Setup.exe`.
 5. Installez-le par-dessus la version existante : il n'est pas nécessaire de
    désinstaller l'ancienne version.
