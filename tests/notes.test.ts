@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { notesTaskProgress, parseNotes, serializeNotes } from '../src/core/notes'
+import {
+  notesTaskProgress,
+  parseNotes,
+  serializeNotes,
+  uncheckNotesTaskLines
+} from '../src/core/notes'
 import { editorContentToNotes, notesToEditorContent } from '../src/ui/week/notesContent'
 
 describe('notes : cases à cocher', () => {
@@ -80,6 +85,14 @@ describe('notes : cases à cocher', () => {
     expect(notesTaskProgress('Avant\n- [x] A\n- [x] B')).toEqual({ checked: 2, total: 2 })
     expect(notesTaskProgress('Texte simple')).toEqual({ checked: 0, total: 0 })
     expect(notesTaskProgress('')).toEqual({ checked: 0, total: 0 })
+  })
+
+  it('décoche toutes les cases sans modifier le reste du texte', () => {
+    const markdown = 'Avant\n- [x] A\n  * [X] B\n- [ ] C\nAprès'
+
+    expect(uncheckNotesTaskLines(markdown)).toBe('Avant\n- [ ] A\n  * [ ] B\n- [ ] C\nAprès')
+    expect(uncheckNotesTaskLines('Texte sans case')).toBe('Texte sans case')
+    expect(uncheckNotesTaskLines('')).toBe('')
   })
 })
 

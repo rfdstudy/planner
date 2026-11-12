@@ -40,7 +40,7 @@ export function createRepositories(
     itemTypes: new ItemTypeRepository(database),
     items: new ItemRepository(database),
     blocks: new BlockRepository(database.blocks),
-    elements: new ElementRepository(database),
+    elements: new ElementRepository(database, history),
     planning: new PlanningRepository(database, history),
     templates: new TemplateRepository(database),
     overrides: new OverrideRepository(database.overrides),

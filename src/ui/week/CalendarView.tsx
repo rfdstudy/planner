@@ -7,6 +7,8 @@ import {
   type ElementDraft,
   type ElementDraftValues
 } from '../../core/elementEditor'
+import type { DuplicateSource, DuplicateTarget } from '../../core/duplicate'
+import { findColumnIndex } from '../../core/drag'
 import {
   fallbackItemType,
   firstNonTaskType,
@@ -22,6 +24,8 @@ import {
 import { blockOccursOn, layoutBlocks, layoutTopLineBands } from '../../core/schedule'
 import {
   MINUTES_PER_DAY,
+  SNAP_MINUTES,
+  clampMinutes,
   formatDayLabel,
   formatDurationMinutes,
   formatLongDate,
@@ -30,6 +34,7 @@ import {
   getWeekDays,
   minutesToTime,
   parseLocalDate,
+  snapMinutes,
   todayLocalDate
 } from '../../core/time'
 import type {
@@ -47,8 +52,11 @@ import type { UndoAction } from '../../db/history'
 import { repositories } from '../../db/repositories'
 import type { DeletedTaskResult } from '../../db/repositories/planning'
 import { usePreferencesStore } from '../../state/preferences'
+import { useEditingStore } from '../../state/editing'
 import { useUiStore, type CalendarViewMode, type CreationKind } from '../../state/ui'
 import { categoryColorStyle } from '../categoryColorStyle'
+import { ContextMenu } from '../components/ContextMenu'
+import { duplicateSourceFromEntry } from './duplicateSource'
 import { ElementEditor } from './ElementEditor'
 import { InboxPanel } from './InboxPanel'
 import { RecurrenceScopeDialog } from './RecurrenceScopeDialog'
@@ -109,6 +117,10 @@ interface DeletedTaskToast {
   action: UndoAction
 }
 
+type ContextMenuState =
+  | { kind: 'entry'; x: number; y: number; entry: ScheduleEntry }
+  | { kind: 'grid'; x: number; y: number; date: LocalDate; startMin: number }
+
 interface CalendarViewProps {
   mode: CalendarViewMode
 }
@@ -140,8 +152,15 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   const [scopeRequest, setScopeRequest] = useState<RecurrenceScopeRequest | null>(null)
   const [deletedTaskToast, setDeletedTaskToast] = useState<DeletedTaskToast | null>(null)
   const [bandGestureActive, setBandGestureActive] = useState(false)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [now, setNow] = useState(() => new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  const selection = useEditingStore((state) => state.selection)
+  const clipboard = useEditingStore((state) => state.clipboard)
+  const select = useEditingStore((state) => state.select)
+  const copyToClipboard = useEditingStore((state) => state.copyToClipboard)
+  const noteDuplicate = useEditingStore((state) => state.noteDuplicate)
 
   const days = useMemo(
     () => (mode === 'day' ? [selectedDate] : getWeekDays(weekStart, preferences.weekStartsOn)),
@@ -161,6 +180,17 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     return byDate
   }, [data])
   const itemTypes = useMemo(() => data?.itemTypes ?? [], [data])
+  const entriesByBlockId = useMemo(() => {
+    const entries = new Map<string, ScheduleEntry>()
+
+    for (const day of data?.days ?? []) {
+      for (const entry of day.timed) entries.set(entry.block.id, entry)
+      for (const entry of day.topLine) entries.set(entry.block.id, entry)
+    }
+
+    return entries
+  }, [data])
+  const selectedBlockId = selection?.kind === 'block' ? selection.blockId : null
   const daysRef = useRef<HTMLDivElement>(null)
   const drag = useScheduleDrag({
     scrollRef,
@@ -234,6 +264,15 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent): void => {
+      pointerRef.current = { x: event.clientX, y: event.clientY }
+    }
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
+    return () => window.removeEventListener('pointermove', handlePointerMove)
   }, [])
 
   useLayoutEffect(() => {
@@ -424,15 +463,19 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     }
   }
 
-  const openEntry = useCallback((entry: ScheduleEntry, anchor: FloatingAnchor): void => {
-    setActionError(null)
-    setEditor({
-      mode: 'edit',
-      entry,
-      anchor,
-      draft: elementDraftFrom(entry.item, entry.block, entry.type)
-    })
-  }, [])
+  const openEntry = useCallback(
+    (entry: ScheduleEntry, anchor: FloatingAnchor): void => {
+      setActionError(null)
+      select({ kind: 'block', blockId: entry.block.id })
+      setEditor({
+        mode: 'edit',
+        entry,
+        anchor,
+        draft: elementDraftFrom(entry.item, entry.block, entry.type)
+      })
+    },
+    [select]
+  )
 
   function handleSlotClick(date: LocalDate, event: React.MouseEvent<HTMLDivElement>): void {
     if (event.button !== 0 || drag.session !== null) return
@@ -451,6 +494,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       preferences.dragStepMin
     )
 
+    select(null)
     setActionError(null)
     setEditor({
       mode: 'create',
@@ -461,6 +505,186 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
       )
     })
   }
+
+  const runDuplicateSource = useCallback(
+    async (source: DuplicateSource, target: DuplicateTarget | null = null): Promise<void> => {
+      const result = await repositories.elements.duplicateItem({
+        ...source,
+        target,
+        snapStepMin: SNAP_MINUTES,
+        defaultDurationMin: preferences.defaultTaskDurationMin
+      })
+
+      if (source.kind === 'stored') {
+        noteDuplicate(result.item.id, source.itemId)
+      }
+
+      if (result.block !== null) {
+        select({ kind: 'block', blockId: result.block.id })
+
+        if (!days.includes(result.block.date)) {
+          showCalendar(result.block.date)
+        }
+      } else {
+        select({ kind: 'inbox', itemId: result.item.id })
+      }
+    },
+    [days, noteDuplicate, preferences.defaultTaskDurationMin, select, showCalendar]
+  )
+
+  const duplicateEntry = useCallback(
+    (entry: ScheduleEntry, target: DuplicateTarget | null = null): Promise<void> =>
+      runDuplicateSource(duplicateSourceFromEntry(entry), target),
+    [runDuplicateSource]
+  )
+
+  const duplicateInboxItem = useCallback(
+    async (itemId: string): Promise<void> => {
+      const source: DuplicateSource = { kind: 'stored', itemId, blockId: null }
+      await runDuplicateSource(source)
+    },
+    [runDuplicateSource]
+  )
+
+  const handleDuplicateEntry = useCallback(
+    async (entry: ScheduleEntry): Promise<void> => {
+      setActionError(null)
+
+      try {
+        await duplicateEntry(entry)
+      } catch {
+        setActionError('L’élément n’a pas pu être dupliqué.')
+      }
+    },
+    [duplicateEntry]
+  )
+
+  const handleDuplicateInboxSelection = useCallback(
+    async (itemId: string): Promise<void> => {
+      setActionError(null)
+
+      try {
+        await duplicateInboxItem(itemId)
+      } catch {
+        setActionError('La tâche n’a pas pu être dupliquée.')
+      }
+    },
+    [duplicateInboxItem]
+  )
+
+  const handlePaste = useCallback(
+    async (target: DuplicateTarget | null = null): Promise<void> => {
+      const source = useEditingStore.getState().clipboard
+
+      if (source === null) return
+
+      setActionError(null)
+
+      try {
+        await runDuplicateSource(source, target)
+      } catch {
+        setActionError('Le collage a échoué.')
+      }
+    },
+    [runDuplicateSource]
+  )
+
+  const resolvePointerTarget = useCallback((): DuplicateTarget | null => {
+    const pointer = pointerRef.current
+    const daysElement = daysRef.current
+
+    if (pointer === null || daysElement === null) return null
+
+    const scrollRect = scrollRef.current?.getBoundingClientRect()
+
+    if (scrollRect !== undefined && (pointer.y < scrollRect.top || pointer.y > scrollRect.bottom)) {
+      return null
+    }
+
+    const inboxElement = document.querySelector<HTMLElement>('[data-inbox-drop]')
+
+    if (inboxElement !== null && pointer.x >= inboxElement.getBoundingClientRect().left) {
+      return null
+    }
+
+    const dayElements = Array.from(daysElement.children) as HTMLElement[]
+
+    if (dayElements.length !== days.length) return null
+
+    const columns = dayElements.map((element) => {
+      const rect = element.getBoundingClientRect()
+      return { left: rect.left, right: rect.right }
+    })
+    const dayIndex = findColumnIndex(pointer.x, columns)
+
+    if (dayIndex === null) return null
+
+    const rect = dayElements[dayIndex].getBoundingClientRect()
+
+    if (rect.height <= 0 || pointer.y < rect.top || pointer.y > rect.bottom) return null
+
+    const minute = clampMinutes(
+      (pointer.y - rect.top) / (rect.height / MINUTES_PER_DAY),
+      0,
+      MINUTES_PER_DAY
+    )
+
+    return {
+      date: days[dayIndex],
+      startMin: snapMinutes(Math.round(minute), SNAP_MINUTES)
+    }
+  }, [days])
+
+  const copyEntry = useCallback(
+    (entry: ScheduleEntry): void => {
+      copyToClipboard(duplicateSourceFromEntry(entry))
+    },
+    [copyToClipboard]
+  )
+
+  const handleEntryContextMenu = useCallback(
+    (entry: ScheduleEntry, event: React.MouseEvent<HTMLDivElement>): void => {
+      event.preventDefault()
+      event.stopPropagation()
+      select({ kind: 'block', blockId: entry.block.id })
+      setContextMenu({ kind: 'entry', x: event.clientX, y: event.clientY, entry })
+    },
+    [select]
+  )
+
+  const handleGridContextMenu = useCallback(
+    (date: LocalDate, event: React.MouseEvent<HTMLDivElement>): void => {
+      event.preventDefault()
+      select(null)
+
+      const rect = event.currentTarget.getBoundingClientRect()
+      const minute =
+        rect.height > 0 ? (event.clientY - rect.top) / (rect.height / MINUTES_PER_DAY) : 0
+      const startMin = clampMinutes(
+        snapMinutes(Math.round(minute), SNAP_MINUTES),
+        0,
+        MINUTES_PER_DAY
+      )
+
+      setContextMenu({ kind: 'grid', x: event.clientX, y: event.clientY, date, startMin })
+    },
+    [select]
+  )
+
+  const handleContextDelete = useCallback(async (entry: ScheduleEntry): Promise<void> => {
+    setActionError(null)
+
+    if (entry.template !== null) {
+      setScopeRequest({ kind: 'delete', entry })
+      return
+    }
+
+    try {
+      await repositories.planning.removeBlock(entry.block.id)
+    } catch {
+      setActionError('Le bloc n’a pas pu être supprimé.')
+    }
+  }, [])
 
   const handleToggleDone = useCallback(async (entry: PlacedEntry, done: boolean): Promise<void> => {
     setActionError(null)
@@ -531,31 +755,91 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      const isUndo =
-        (event.ctrlKey || event.metaKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === 'z'
+      const withModifier = event.ctrlKey || event.metaKey
 
-      if (!isUndo) return
+      if (!withModifier || event.altKey || event.shiftKey) return
+      if (event.defaultPrevented || event.repeat) return
+
+      const key = event.key.toLowerCase()
+
+      if (key !== 'z' && key !== 'c' && key !== 'v' && key !== 'd') return
+      if (isTextEntryTarget(event.target)) return
       if (
-        isTextEntryTarget(event.target) ||
         editor !== null ||
         drag.session !== null ||
         scopeRequest !== null ||
         paletteOpen ||
-        bandGestureActive
+        bandGestureActive ||
+        contextMenu !== null
       ) {
         return
       }
 
+      if (key === 'z') {
+        event.preventDefault()
+        void handleUndo()
+        return
+      }
+
+      if (key === 'd') {
+        // Même sans sélection, on empêche l'ouverture du marque-page Firefox.
+        event.preventDefault()
+
+        if (selection === null) return
+
+        if (selection.kind === 'block') {
+          const entry = entriesByBlockId.get(selection.blockId)
+
+          if (entry !== undefined) void handleDuplicateEntry(entry)
+        } else {
+          void handleDuplicateInboxSelection(selection.itemId)
+        }
+
+        return
+      }
+
+      if (key === 'c') {
+        if (selection === null) return
+
+        event.preventDefault()
+
+        if (selection.kind === 'block') {
+          const entry = entriesByBlockId.get(selection.blockId)
+
+          if (entry !== undefined) copyEntry(entry)
+        } else {
+          copyToClipboard({ kind: 'stored', itemId: selection.itemId, blockId: null })
+        }
+
+        return
+      }
+
+      if (clipboard === null) return
+
       event.preventDefault()
-      void handleUndo()
+      void handlePaste(resolvePointerTarget())
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [bandGestureActive, drag.session, editor, handleUndo, paletteOpen, scopeRequest])
+  }, [
+    bandGestureActive,
+    clipboard,
+    contextMenu,
+    copyEntry,
+    copyToClipboard,
+    drag.session,
+    editor,
+    entriesByBlockId,
+    handleDuplicateEntry,
+    handleDuplicateInboxSelection,
+    handlePaste,
+    handleUndo,
+    paletteOpen,
+    resolvePointerTarget,
+    scopeRequest,
+    selection
+  ])
 
   async function handleEditorSubmit(values: ElementDraftValues): Promise<void> {
     if (editor === null) return
@@ -630,6 +914,14 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
     setEditor(null)
     setActionError(null)
     setScopeRequest({ kind: 'edit', entry, values, returnToEditor })
+  }
+
+  async function handleEditorDuplicate(): Promise<void> {
+    if (editor === null || editor.mode !== 'edit') return
+
+    await duplicateEntry(editor.entry)
+    setEditor(null)
+    setActionError(null)
   }
 
   async function handleEditorDelete(): Promise<void> {
@@ -817,8 +1109,10 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
                   rowCount={data.topLineRowCount}
                   maxRows={mode === 'day' ? Number.POSITIVE_INFINITY : undefined}
                   today={today}
+                  selectedBlockId={selectedBlockId}
                   onCreate={openTopLineCreate}
                   onOpen={openEntry}
+                  onContextMenu={handleEntryContextMenu}
                   onMove={handleBandMove}
                   onResize={handleBandResize}
                   onGestureActiveChange={setBandGestureActive}
@@ -849,6 +1143,7 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
                     key={date}
                     title="Cliquer pour ajouter un bloc"
                     onClick={(event) => handleSlotClick(date, event)}
+                    onContextMenu={(event) => handleGridContextMenu(date, event)}
                   >
                     {freeSlots.map((slot) => (
                       <div
@@ -873,10 +1168,12 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
                           entry={entry}
                           today={today}
                           dragMode={blockDragMode}
+                          selected={selectedBlockId === entry.block.id}
                           onOpen={openEntry}
                           onToggleDone={handleToggleDone}
                           onMoveStart={drag.startBlockMove}
                           onResizeStart={drag.startBlockResize}
+                          onContextMenu={handleEntryContextMenu}
                         />
                       )
                     })}
@@ -894,6 +1191,11 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
                         }}
                         aria-hidden="true"
                       >
+                        {dragSession.kind === 'move' && dragSession.copyMode && (
+                          <span className={styles.ghostCopyMark} aria-hidden="true">
+                            +
+                          </span>
+                        )}
                         {dragSession.kind !== 'resize' && dragTarget.durationMin >= 30 && (
                           <span className={styles.ghostTitle}>{dragSession.title}</span>
                         )}
@@ -921,7 +1223,11 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
         </div>
         <InboxPanel
           onTaskDragStart={drag.startTaskDrag}
-          dropActive={drag.preview?.overInbox === true && drag.session?.kind === 'move'}
+          dropActive={
+            drag.preview?.overInbox === true &&
+            drag.session?.kind === 'move' &&
+            !drag.session.copyMode
+          }
           onTaskDeleted={handleTaskDeleted}
         />
       </div>
@@ -961,7 +1267,42 @@ export function CalendarView({ mode }: CalendarViewProps): React.JSX.Element {
           recurring={editor.mode === 'edit' && editor.entry.template !== null}
           onClose={() => setEditor(null)}
           onSubmit={handleEditorSubmit}
+          onDuplicate={editor.mode === 'edit' ? handleEditorDuplicate : undefined}
           onDelete={editor.mode === 'edit' ? handleEditorDelete : undefined}
+        />
+      )}
+
+      {contextMenu !== null && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          label={contextMenu.kind === 'entry' ? 'Actions sur l’élément' : 'Actions sur la grille'}
+          onClose={() => setContextMenu(null)}
+          items={
+            contextMenu.kind === 'entry'
+              ? [
+                  {
+                    label: 'Dupliquer',
+                    onSelect: () => void handleDuplicateEntry(contextMenu.entry)
+                  },
+                  { label: 'Copier', onSelect: () => copyEntry(contextMenu.entry) },
+                  {
+                    label: 'Supprimer',
+                    onSelect: () => void handleContextDelete(contextMenu.entry)
+                  }
+                ]
+              : [
+                  {
+                    label: 'Coller ici',
+                    disabled: clipboard === null,
+                    onSelect: () =>
+                      void handlePaste({
+                        date: contextMenu.date,
+                        startMin: contextMenu.startMin
+                      })
+                  }
+                ]
+          }
         />
       )}
 

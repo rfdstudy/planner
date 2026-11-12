@@ -7,6 +7,7 @@ export type IconName =
   | 'chevronLeft'
   | 'pencil'
   | 'trash'
+  | 'copy'
   | 'archive'
   | 'restore'
   | 'arrowUp'
@@ -32,6 +33,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M8 6V4h8v2" />
       <path d="m19 6-1 14H6L5 6" />
       <path d="M10 11v6M14 11v6" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
     </>
   ),
   archive: (

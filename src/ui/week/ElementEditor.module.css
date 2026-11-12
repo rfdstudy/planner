@@ -271,6 +271,7 @@
 
 .footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
   padding-top: var(--sp-3);
@@ -282,6 +283,12 @@
   align-items: center;
   gap: var(--sp-1);
   margin-left: auto;
+}
+
+.footerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
 
 .primaryButton {
@@ -314,13 +321,29 @@
 
 .deleteButton {
   height: 32px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-1);
   border-radius: var(--radius-ctl);
   color: var(--text-3);
   font-size: var(--fs-sm);
   transition:
     background-color var(--t-fast),
     color var(--t-fast);
+}
+
+.duplicateButton {
+  height: 32px;
+  padding: 0 var(--sp-1);
+  border-radius: var(--radius-ctl);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.duplicateButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .deleteButton:hover:not(:disabled) {
@@ -330,6 +353,7 @@
 
 .primaryButton:disabled,
 .ghostButton:disabled,
+.duplicateButton:disabled,
 .deleteButton:disabled {
   opacity: 0.5;
 }

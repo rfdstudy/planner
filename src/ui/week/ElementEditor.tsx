@@ -33,6 +33,8 @@ interface ElementEditorProps {
   onSubmit?: (values: ElementDraftValues) => Promise<void>
   /** Appelé pour une tâche encore sans bloc, depuis « À planifier ». */
   onSubmitTask?: (values: TaskDraftValues) => Promise<void>
+  /** Absent en création : rien n'existe encore à dupliquer. */
+  onDuplicate?: () => Promise<void>
   /** Absent en création : rien n'existe encore à supprimer. */
   onDelete?: () => Promise<void>
 }
@@ -59,11 +61,12 @@ export function ElementEditor({
   onClose,
   onSubmit,
   onSubmitTask,
+  onDuplicate,
   onDelete
 }: ElementEditorProps): React.JSX.Element {
   const [draft, setDraft] = useState<ElementDraft | TaskDraft>(initialDraft)
   const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState<'save' | 'delete' | null>(null)
+  const [pending, setPending] = useState<'save' | 'delete' | 'duplicate' | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [position, setPosition] = useState<FloatingAnchor | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -351,6 +354,22 @@ export function ElementEditor({
       setError('La suppression a échoué. Réessayez.')
       setPending(null)
       setConfirmingDelete(false)
+    }
+  }
+
+  async function handleDuplicate(): Promise<void> {
+    if (busy || onDuplicate === undefined) return
+
+    setError(null)
+    setConfirmingDelete(false)
+    setPending('duplicate')
+
+    try {
+      await onDuplicate()
+      setPending(null)
+    } catch {
+      setError('La duplication a échoué. Réessayez.')
+      setPending(null)
     }
   }
 
@@ -651,18 +670,29 @@ export function ElementEditor({
         )}
 
         <div className={styles.footer}>
-          {onDelete === undefined ? (
-            <span />
-          ) : (
-            <button
-              type="button"
-              className={styles.deleteButton}
-              disabled={busy || confirmingDelete}
-              onClick={() => void handleDelete()}
-            >
-              Supprimer
-            </button>
-          )}
+          <div className={styles.footerLeft}>
+            {onDuplicate !== undefined && (
+              <button
+                type="button"
+                className={styles.duplicateButton}
+                disabled={busy}
+                onClick={() => void handleDuplicate()}
+              >
+                Dupliquer
+              </button>
+            )}
+
+            {onDelete !== undefined && (
+              <button
+                type="button"
+                className={styles.deleteButton}
+                disabled={busy || confirmingDelete}
+                onClick={() => void handleDelete()}
+              >
+                Supprimer
+              </button>
+            )}
+          </div>
 
           <div className={styles.footerActions}>
             <button type="button" className={styles.ghostButton} disabled={busy} onClick={onClose}>

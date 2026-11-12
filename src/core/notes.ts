@@ -63,6 +63,15 @@ export function serializeNotes(lines: readonly NoteLine[]): string {
     .join('\n')
 }
 
+/**
+ * Décoche toutes les cases des notes sans toucher au reste du texte. La copie
+ * d'un élément doit repartir avec des cases vides, même si l'original était
+ * terminé (document de l'évolution « dupliquer / copier-coller »).
+ */
+export function uncheckNotesTaskLines(markdown: string): string {
+  return markdown.replace(/^([ \t]*[-*][ \t]+\[)[xX](\])/gm, '$1 $2')
+}
+
 /** Compte les cases cochées et le total, pour le compteur à côté du libellé. */
 export function notesTaskProgress(markdown: string): NotesTaskProgress {
   let checked = 0

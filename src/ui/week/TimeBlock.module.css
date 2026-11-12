@@ -24,6 +24,11 @@
   will-change: height;
 }
 
+.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .neutral {
   background: var(--bg-subtle);
   color: var(--text-2);

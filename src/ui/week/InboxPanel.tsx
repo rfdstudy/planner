@@ -8,8 +8,10 @@ import { formatDurationMinutes } from '../../core/time'
 import type { Block, Category, CategoryGroup, Item, ItemType } from '../../core/types'
 import { repositories } from '../../db/repositories'
 import type { DeletedTaskResult } from '../../db/repositories/planning'
+import { useEditingStore } from '../../state/editing'
 import { usePreferencesStore } from '../../state/preferences'
 import { categoryColorStyle } from '../categoryColorStyle'
+import { ContextMenu } from '../components/ContextMenu'
 import { Icon } from '../components/Icon'
 import { ElementEditor } from './ElementEditor'
 import type { FloatingAnchor } from './scheduleTypes'
@@ -43,6 +45,12 @@ interface TaskEditorSession {
   draft: TaskDraft
 }
 
+interface InboxContextMenu {
+  x: number
+  y: number
+  task: InboxTask
+}
+
 /**
  * Panneau latéral « À planifier ». Il ne fait aucune écriture directe : les
  * ajouts et modifications passent par les repositories, la liste se met à jour
@@ -67,7 +75,13 @@ export const InboxPanel = memo(function InboxPanel({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [taskEditor, setTaskEditor] = useState<TaskEditorSession | null>(null)
+  const [contextMenu, setContextMenu] = useState<InboxContextMenu | null>(null)
   const taskPointerDownRef = useRef<{ x: number; y: number } | null>(null)
+  const selection = useEditingStore((state) => state.selection)
+  const select = useEditingStore((state) => state.select)
+  const copyToClipboard = useEditingStore((state) => state.copyToClipboard)
+  const noteDuplicate = useEditingStore((state) => state.noteDuplicate)
+  const duplicateAfter = useEditingStore((state) => state.duplicateAfter)
 
   useEffect(() => {
     const subscription = liveQuery(async () => {
@@ -173,6 +187,10 @@ export const InboxPanel = memo(function InboxPanel({
     effectiveFilterCategoryId === null
       ? tasks
       : tasks.filter((task) => task.item.categoryId === effectiveFilterCategoryId)
+  const orderedTasks = useMemo(
+    () => orderTasksWithDuplicates(visibleTasks, duplicateAfter),
+    [duplicateAfter, visibleTasks]
+  )
   const selectedCategory =
     categories.find((category) => category.id === effectiveCategoryId) ?? null
 
@@ -231,6 +249,7 @@ export const InboxPanel = memo(function InboxPanel({
   }
 
   function openTask(task: InboxTask, event: React.MouseEvent<HTMLButtonElement>): void {
+    select({ kind: 'inbox', itemId: task.item.id })
     setTaskEditor({
       itemId: task.item.id,
       anchor: { x: event.clientX, y: event.clientY },
@@ -244,6 +263,7 @@ export const InboxPanel = memo(function InboxPanel({
   ): void {
     if (event.button !== 0) return
 
+    select({ kind: 'inbox', itemId: task.item.id })
     taskPointerDownRef.current = { x: event.clientX, y: event.clientY }
     onTaskDragStart(task, event)
   }
@@ -283,7 +303,53 @@ export const InboxPanel = memo(function InboxPanel({
     await deleteTask(taskEditor.itemId)
   }
 
-  function handleTaskKeyDown(task: InboxTask, event: React.KeyboardEvent<HTMLDivElement>): void {
+  async function duplicateTask(task: InboxTask): Promise<void> {
+    const result = await repositories.elements.duplicateItem({
+      kind: 'stored',
+      itemId: task.item.id,
+      blockId: null
+    })
+
+    noteDuplicate(result.item.id, task.item.id)
+    select({ kind: 'inbox', itemId: result.item.id })
+    setDeleteError(null)
+  }
+
+  async function handleTaskDuplicate(task: InboxTask): Promise<void> {
+    try {
+      await duplicateTask(task)
+    } catch {
+      setDeleteError('La tâche n’a pas pu être dupliquée. Réessayez.')
+    }
+  }
+
+  async function handleEditorTaskDuplicate(): Promise<void> {
+    if (taskEditor === null) return
+
+    const sourceId = taskEditor.itemId
+    const result = await repositories.elements.duplicateItem({
+      kind: 'stored',
+      itemId: sourceId,
+      blockId: null
+    })
+
+    noteDuplicate(result.item.id, sourceId)
+    select({ kind: 'inbox', itemId: result.item.id })
+    setTaskEditor(null)
+  }
+
+  function handleTaskCopy(task: InboxTask): void {
+    copyToClipboard({ kind: 'stored', itemId: task.item.id, blockId: null })
+  }
+
+  function handleTaskContextMenu(task: InboxTask, event: React.MouseEvent<HTMLElement>): void {
+    event.preventDefault()
+    event.stopPropagation()
+    select({ kind: 'inbox', itemId: task.item.id })
+    setContextMenu({ x: event.clientX, y: event.clientY, task })
+  }
+
+  function handleTaskKeyDown(task: InboxTask, event: React.KeyboardEvent<HTMLElement>): void {
     if (event.key !== 'Delete' || event.repeat) return
 
     event.preventDefault()
@@ -477,22 +543,27 @@ export const InboxPanel = memo(function InboxPanel({
                     : 'Aucune tâche dans cette catégorie.'}
                 </p>
               ) : (
-                visibleTasks.map((task) => {
+                orderedTasks.map((task) => {
                   const accent = itemTypeAccentColor(task.type, task.category?.color ?? null)
+                  const selected = selection?.kind === 'inbox' && selection.itemId === task.item.id
 
                   return (
                     <div
                       className={styles.rowWrap}
                       key={task.item.id}
-                      onKeyDown={(event) => handleTaskKeyDown(task, event)}
+                      onContextMenu={(event) => handleTaskContextMenu(task, event)}
                     >
                       <button
                         type="button"
-                        className={
-                          task.item.status === 'done'
-                            ? `${styles.row} ${styles.rowDone}`
-                            : styles.row
-                        }
+                        className={[
+                          styles.row,
+                          task.item.status === 'done' ? styles.rowDone : '',
+                          selected ? styles.rowSelected : ''
+                        ]
+                          .filter((className) => className !== '')
+                          .join(' ')}
+                        onFocus={() => select({ kind: 'inbox', itemId: task.item.id })}
+                        onKeyDown={(event) => handleTaskKeyDown(task, event)}
                         onPointerDown={(event) => handleTaskPointerDown(task, event)}
                         onClick={(event) => handleTaskClick(task, event)}
                       >
@@ -505,6 +576,16 @@ export const InboxPanel = memo(function InboxPanel({
                         <span className={styles.remaining}>
                           {formatDurationMinutes(task.remainingMin)}
                         </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={styles.duplicateButton}
+                        aria-label="Dupliquer la tâche"
+                        title="Dupliquer la tâche"
+                        onClick={() => void handleTaskDuplicate(task)}
+                      >
+                        <Icon name="copy" size={14} />
                       </button>
 
                       <button
@@ -542,9 +623,80 @@ export const InboxPanel = memo(function InboxPanel({
           itemTypes={itemTypes}
           onClose={() => setTaskEditor(null)}
           onSubmitTask={handleTaskSubmit}
+          onDuplicate={handleEditorTaskDuplicate}
           onDelete={handleEditorTaskDelete}
+        />
+      )}
+
+      {contextMenu !== null && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          label="Actions sur la tâche"
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: 'Dupliquer',
+              onSelect: () => void handleTaskDuplicate(contextMenu.task)
+            },
+            { label: 'Copier', onSelect: () => handleTaskCopy(contextMenu.task) },
+            {
+              label: 'Supprimer',
+              onSelect: () => void handleTaskDelete(contextMenu.task)
+            }
+          ]}
         />
       )}
     </>
   )
 })
+
+/**
+ * Place chaque copie juste sous son original. L'ordre reste stable pour tous
+ * les autres éléments, y compris quand un original quitte le panneau.
+ */
+function orderTasksWithDuplicates(
+  tasks: readonly InboxTask[],
+  duplicateAfter: Record<string, string>
+): InboxTask[] {
+  const byId = new Map(tasks.map((task) => [task.item.id, task]))
+  const children = new Map<string, string[]>()
+  const roots: string[] = []
+
+  for (const task of tasks) {
+    const sourceId = duplicateAfter[task.item.id]
+
+    if (sourceId !== undefined && sourceId !== task.item.id && byId.has(sourceId)) {
+      const list = children.get(sourceId)
+
+      if (list === undefined) {
+        children.set(sourceId, [task.item.id])
+      } else {
+        list.push(task.item.id)
+      }
+    } else {
+      roots.push(task.item.id)
+    }
+  }
+
+  const ordered: InboxTask[] = []
+  const visited = new Set<string>()
+
+  const append = (id: string): void => {
+    if (visited.has(id)) return
+
+    visited.add(id)
+    const task = byId.get(id)
+
+    if (task !== undefined) ordered.push(task)
+
+    for (const childId of children.get(id) ?? []) {
+      append(childId)
+    }
+  }
+
+  for (const id of roots) append(id)
+  for (const task of tasks) append(task.item.id)
+
+  return ordered
+}

@@ -15,6 +15,8 @@ import { getFreeSlots, type FreeSlot } from '../../core/schedule'
 import { MINUTES_PER_DAY } from '../../core/time'
 import type { LocalDate } from '../../core/types'
 import { repositories } from '../../db/repositories'
+import { useEditingStore } from '../../state/editing'
+import { duplicateSourceFromEntry } from './duplicateSource'
 import type { PlacedEntry, ScheduleDayData } from './scheduleTypes'
 
 /** Bande, en pixels, dans laquelle le défilement automatique s'active. */
@@ -41,6 +43,8 @@ export interface ScheduleDragSession {
   title: string
   categoryColor: string | null
   durationMin: number
+  /** Ctrl ou Cmd est enfoncé : le lâcher créera une copie. */
+  copyMode: boolean
   freeSlotsByDate: ReadonlyMap<LocalDate, FreeSlot[]>
 }
 
@@ -86,6 +90,7 @@ interface PendingGesture {
   grabOffsetMin: number
   title: string
   categoryColor: string | null
+  copyMode: boolean
 }
 
 interface ActiveGesture extends PendingGesture {
@@ -443,7 +448,8 @@ export function useScheduleDrag({
               : itemTypeAccentColor(task.type, task.category?.color ?? null)
             : entry === null
               ? null
-              : itemTypeAccentColor(entry.type, entry.category?.color ?? null)
+              : itemTypeAccentColor(entry.type, entry.category?.color ?? null),
+        copyMode: kind === 'move' && (event.ctrlKey || event.metaKey)
       }
 
       pendingRef.current = pending
@@ -507,12 +513,36 @@ export function useScheduleDrag({
         cancelDrag()
       }
 
+      const handleControlKey = (keyEvent: KeyboardEvent): void => {
+        if (keyEvent.key !== 'Control' && keyEvent.key !== 'Meta') return
+
+        const copyMode = keyEvent.type === 'keydown'
+
+        if (activeRef.current === null) {
+          if (pendingRef.current !== null) {
+            pendingRef.current.copyMode = copyMode
+          }
+
+          return
+        }
+
+        const active = activeRef.current
+
+        if (active.kind !== 'move' || active.copyMode === copyMode) return
+
+        active.copyMode = copyMode
+        setSession((current) => (current === null ? current : { ...current, copyMode }))
+        document.body.style.cursor = copyMode ? 'copy' : 'grabbing'
+      }
+
       const removeLocalListeners = (): void => {
         window.removeEventListener('pointermove', handlePointerMove)
         window.removeEventListener('pointerup', handlePointerUp)
         window.removeEventListener('pointercancel', handlePointerCancel)
         window.removeEventListener('blur', handleWindowBlur)
         document.removeEventListener('keydown', handleKeyDown)
+        document.removeEventListener('keydown', handleControlKey)
+        document.removeEventListener('keyup', handleControlKey)
 
         try {
           if (captureElement.hasPointerCapture(pending.pointerId)) {
@@ -529,6 +559,8 @@ export function useScheduleDrag({
       window.addEventListener('pointercancel', handlePointerCancel)
       window.addEventListener('blur', handleWindowBlur)
       document.addEventListener('keydown', handleKeyDown)
+      document.addEventListener('keydown', handleControlKey)
+      document.addEventListener('keyup', handleControlKey)
 
       function activate(): void {
         const scrollEl = scrollRef.current
@@ -612,11 +644,13 @@ export function useScheduleDrag({
           title: pending.title,
           categoryColor: pending.categoryColor,
           durationMin: pending.durationMin,
+          copyMode: pending.copyMode,
           freeSlotsByDate
         })
         setPreview({ target: null, overInbox: false })
         document.body.style.userSelect = 'none'
-        document.body.style.cursor = pending.kind === 'resize' ? 'ns-resize' : 'grabbing'
+        document.body.style.cursor =
+          pending.kind === 'resize' ? 'ns-resize' : pending.copyMode ? 'copy' : 'grabbing'
         updateFrame()
         rafRef.current = window.requestAnimationFrame(frame)
       }
@@ -657,7 +691,41 @@ export function useScheduleDrag({
         if (active.kind === 'move' && active.sourceEntry !== null) {
           const sourceEntry = active.sourceEntry
 
-          if (sourceEntry.template !== null) {
+          if (active.copyMode) {
+            // Ctrl + glisser : l'original reste en place, une copie arrive à
+            // la destination. Sans destination, aucun élément n'est créé.
+            if (active.target !== null) {
+              const source = duplicateSourceFromEntry(sourceEntry)
+              const target = active.target
+
+              try {
+                const result = await repositories.elements.duplicateItem({
+                  ...source,
+                  target,
+                  snapStepMin,
+                  defaultDurationMin: defaultTaskDurationMin
+                })
+
+                if (source.kind === 'stored') {
+                  useEditingStore.getState().noteDuplicate(result.item.id, source.itemId)
+                }
+
+                if (result.block !== null) {
+                  useEditingStore.getState().select({
+                    kind: 'block',
+                    blockId: result.block.id
+                  })
+                } else {
+                  useEditingStore.getState().select({
+                    kind: 'inbox',
+                    itemId: result.item.id
+                  })
+                }
+              } catch {
+                onErrorRef.current('L’élément n’a pas pu être dupliqué.')
+              }
+            }
+          } else if (sourceEntry.template !== null) {
             if (active.overInbox) {
               onTemplateDeleteRef.current(sourceEntry)
             } else if (

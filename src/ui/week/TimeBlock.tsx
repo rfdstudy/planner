@@ -16,20 +16,24 @@ interface TimeBlockProps {
   entry: PlacedEntry
   today: LocalDate
   dragMode: TimeBlockDragMode | null
+  selected: boolean
   onOpen: (entry: PlacedEntry, anchor: FloatingAnchor) => void
   onToggleDone: (entry: PlacedEntry, done: boolean) => void
   onMoveStart: (entry: PlacedEntry, event: React.PointerEvent<HTMLDivElement>) => void
   onResizeStart: (entry: PlacedEntry, event: React.PointerEvent<HTMLDivElement>) => void
+  onContextMenu: (entry: PlacedEntry, event: React.MouseEvent<HTMLDivElement>) => void
 }
 
 export const TimeBlock = memo(function TimeBlock({
   entry,
   today,
   dragMode,
+  selected,
   onOpen,
   onToggleDone,
   onMoveStart,
-  onResizeStart
+  onResizeStart,
+  onContextMenu
 }: TimeBlockProps): React.JSX.Element | null {
   const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
   const { block, item, category, placement } = entry
@@ -55,6 +59,7 @@ export const TimeBlock = memo(function TimeBlock({
     hasTypeColor ? styles.withTypeColor : '',
     isCompact ? styles.compact : '',
     isDone ? styles.done : '',
+    selected ? styles.selected : '',
     dragMode === 'move' ? styles.dragging : '',
     dragMode === 'resize' ? styles.resizing : ''
   ]
@@ -120,6 +125,12 @@ export const TimeBlock = memo(function TimeBlock({
     onToggleDone(entry, event.currentTarget.checked)
   }
 
+  function handleContextMenu(event: React.MouseEvent<HTMLDivElement>): void {
+    event.preventDefault()
+    event.stopPropagation()
+    onContextMenu(entry, event)
+  }
+
   return (
     <div
       className={classNames}
@@ -130,6 +141,7 @@ export const TimeBlock = memo(function TimeBlock({
       aria-label={`Modifier ${item.title}`}
       data-block-id={block.id}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
     >

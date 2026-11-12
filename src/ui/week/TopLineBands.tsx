@@ -72,8 +72,10 @@ interface TopLineBandsProps {
   /** Lignes affichées avant le contrôle « +N » ; trois par défaut. */
   maxRows?: number
   today: LocalDate
+  selectedBlockId?: string | null
   onCreate: (date: LocalDate, endDate: LocalDate | null, anchor: FloatingAnchor) => void
   onOpen: (entry: ScheduleEntry, anchor: FloatingAnchor) => void
+  onContextMenu?: (entry: ScheduleEntry, event: React.MouseEvent<HTMLDivElement>) => void
   onMove: (entry: ScheduleEntry, date: LocalDate, endDate: LocalDate | null) => Promise<void>
   onResize: (entry: ScheduleEntry, date: LocalDate, endDate: LocalDate | null) => Promise<void>
   /** Prévient la vue qu'un geste est en cours : les raccourcis sont suspendus. */
@@ -91,8 +93,10 @@ export function TopLineBands({
   rowCount,
   maxRows = MAX_TOP_LINE_ROWS,
   today,
+  selectedBlockId = null,
   onCreate,
   onOpen,
+  onContextMenu,
   onMove,
   onResize,
   onGestureActiveChange
@@ -562,7 +566,13 @@ export function TopLineBands({
 
             return (
               <div
-                className={`${styles.band} ${previewing ? styles.bandPreviewing : ''}`}
+                className={[
+                  styles.band,
+                  previewing ? styles.bandPreviewing : '',
+                  selectedBlockId === entry.block.id ? styles.selected : ''
+                ]
+                  .filter((className) => className !== '')
+                  .join(' ')}
                 data-style={type.style}
                 data-colored={accent !== null ? '' : undefined}
                 data-top-line-band
@@ -578,6 +588,11 @@ export function TopLineBands({
                   ...(accent === null ? {} : categoryColorStyle(accent))
                 }}
                 onClick={(event) => handleBandClick(entry, event)}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onContextMenu?.(entry, event)
+                }}
                 onKeyDown={(event) => handleBandKeyDown(entry, event)}
                 onPointerDown={(event) => startBandGesture(band, 'move', event)}
               >

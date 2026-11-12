@@ -314,6 +314,11 @@
   filter: grayscale(1);
 }
 
+.rowSelected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .dot {
   flex: 0 0 auto;
   width: 8px;
@@ -346,10 +351,10 @@
   opacity: 0;
 }
 
-.deleteButton {
+.deleteButton,
+.duplicateButton {
   position: absolute;
   top: 50%;
-  right: var(--sp-1);
   display: grid;
   place-items: center;
   width: 28px;
@@ -365,18 +370,30 @@
     color var(--t-fast);
 }
 
+.deleteButton {
+  right: var(--sp-1);
+}
+
+.duplicateButton {
+  right: 33px;
+}
+
 .rowWrap:hover .deleteButton,
-.rowWrap:focus-within .deleteButton {
+.rowWrap:hover .duplicateButton,
+.rowWrap:focus-within .deleteButton,
+.rowWrap:focus-within .duplicateButton {
   opacity: 1;
   pointer-events: auto;
 }
 
-.deleteButton:hover {
+.deleteButton:hover,
+.duplicateButton:hover {
   background: var(--bg-hover);
   color: var(--text-2);
 }
 
-.deleteButton:focus-visible {
+.deleteButton:focus-visible,
+.duplicateButton:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   opacity: 1;
