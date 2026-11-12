@@ -50,10 +50,14 @@ Le dossier `release/win-unpacked/` contient alors l'application complète.
    **Exporter la sauvegarde (JSON)**. Conservez ce fichier : il permet de
    restaurer toutes les données en cas de problème.
 2. Fermez complètement Planner (toutes ses fenêtres).
-3. Lancez `release/Planner-Setup.exe`.
-4. Installez-le par-dessus la version existante : il n'est pas nécessaire de
+3. Lancez la commande :
+    ```bash
+      npm run release
+    ```
+4. Puis lancez `release/Planner-Setup.exe`.
+5. Installez-le par-dessus la version existante : il n'est pas nécessaire de
    désinstaller l'ancienne version.
-5. Relancez Planner. Les données restent dans `%APPDATA%\Planner` et sont
+6. Relancez Planner. Les données restent dans `%APPDATA%\Planner` et sont
    conservées.
 
 L'installateur s'appelle toujours `Planner-Setup.exe` : son nom ne contient pas
